@@ -9,6 +9,7 @@ namespace ElGato_API.Interfaces
     {
         Task<(BasicErrorResponse error, UserCalorieIntake model)> GetUserCalories(string userId);
         Task<(BasicErrorResponse error, UserCalorieIntake? model)> GetCurrentCalories(string userId, DateTime date);
+        Task<(BasicErrorResponse error, double weight)> GetCurrentUserWeight(string userId);
         Task<(BasicErrorResponse error, double water)> GetCurrentWaterIntake(string userId, DateTime date);
         Task<(BasicErrorResponse error, string? data)> GetSystem(string userId);
         Task<(BasicErrorResponse error, UserLayoutVMO? data)> GetUserLayout(string userId);

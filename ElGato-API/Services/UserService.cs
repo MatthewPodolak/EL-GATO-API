@@ -125,6 +125,26 @@ namespace ElGato_API.Services
             }
         }
 
+        public async Task<(BasicErrorResponse error, double weight)> GetCurrentUserWeight(string userId)
+        {
+            try
+            {
+                var res = await _dbContext.AppUser.Include(a=>a.UserInformation).FirstOrDefaultAsync(a=>a.Id == userId);
+                if(res == null || res.UserInformation == null)
+                {
+                    _logger.LogWarning($"User record with id: {userId} not found while trying to get user current weight. Method: {nameof(GetCurrentUserWeight)}");
+                    return (new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, ErrorMessage = "User with given id and its weight not found.", Success = false }, 0);
+                }
+
+                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess"}, res.UserInformation.Weight ?? 0);
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Error occured while trying to get current user weight UserId: {userId} Method: {nameof(GetCurrentUserWeight)}");
+                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"Error occured: {ex}", Success = false}, 0);
+            }
+        }
+
         public async Task<(BasicErrorResponse error, double water)> GetCurrentWaterIntake(string userId, DateTime date)
         {
             try
@@ -688,5 +708,6 @@ namespace ElGato_API.Services
                 return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"Error occured: {ex}", Success = false };
             }
         }
+
     }
 }
