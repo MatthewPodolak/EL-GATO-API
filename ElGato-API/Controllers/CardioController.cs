@@ -1,5 +1,6 @@
 ﻿using ElGato_API.Data.JWT;
 using ElGato_API.Interfaces;
+using ElGato_API.VM.Cardio;
 using ElGato_API.VMO.Cardio;
 using ElGato_API.VMO.ErrorResponse;
 using Microsoft.AspNetCore.Authorization;
@@ -73,6 +74,47 @@ namespace ElGato_API.Controllers
                 }
 
                 return Ok(res.data);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured: {ex.Message}", Success = false });
+            }
+        }
+
+        [HttpPost]
+        [Authorize(Policy = "user")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> AddExerciseToTrainingDay([FromBody] AddCardioExerciseVM model)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return StatusCode(400, new BasicErrorResponse()
+                    {
+                        ErrorMessage = $"Model state not valid. Please check {nameof(AddCardioExerciseVM)}",
+                        Success = false,
+                        ErrorCode = ErrorCodes.ModelStateNotValid,
+                    });
+                }
+
+                var userId = _jwtService.GetUserIdClaim();
+
+                var res = await _cardioService.AddExerciseToTrainingDay(userId, model);
+                if (!res.Success)
+                {
+                    return res.ErrorCode switch
+                    {
+                        ErrorCodes.NotFound => NotFound(res),
+                        ErrorCodes.Internal => StatusCode(500, res),
+                        _ => BadRequest(res)
+                    };
+                }
+
+                return Ok();
             }
             catch (Exception ex)
             {

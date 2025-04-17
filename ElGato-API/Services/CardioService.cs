@@ -1,9 +1,15 @@
 ﻿using ElGato_API.Data;
 using ElGato_API.Interfaces;
 using ElGato_API.Models.User;
+using ElGato_API.ModelsMongo.Cardio;
+using ElGato_API.ModelsMongo.Training;
+using ElGato_API.VM.Cardio;
 using ElGato_API.VMO.Cardio;
 using ElGato_API.VMO.ErrorResponse;
 using Microsoft.EntityFrameworkCore;
+using MongoDB.Driver;
+using MongoDB.Driver.GeoJsonObjectModel;
+using System.Text;
 
 namespace ElGato_API.Services
 {
@@ -11,10 +17,14 @@ namespace ElGato_API.Services
     {
         private readonly AppDbContext _context;
         private readonly ILogger<CardioService> _logger;
-        public CardioService(AppDbContext context, ILogger<CardioService> logger)
+        private readonly IHelperService _helperService;
+        private readonly IMongoCollection<DailyCardioDocument> _cardioDocument;
+        public CardioService(AppDbContext context, ILogger<CardioService> logger, IMongoDatabase database, IHelperService helperService)
         {
             _context = context;
             _logger = logger;
+            _helperService = helperService;
+            _cardioDocument = database.GetCollection<DailyCardioDocument>("DailyCardio");
         }
 
         public async Task<(BasicErrorResponse error, List<ChallengeVMO>? data)> GetActiveChallenges(string userId)
@@ -125,6 +135,67 @@ namespace ElGato_API.Services
             }
         }
 
+        public async Task<BasicErrorResponse> AddExerciseToTrainingDay(string userId, AddCardioExerciseVM model)
+        {
+            try
+            {
+                var userCardioDocument = await _cardioDocument.Find(a=>a.UserId == userId).FirstOrDefaultAsync();
+                if(userCardioDocument == null)
+                {
+                    _logger.LogWarning($"User cardio-training document not found. UserId: {userId} Method: {nameof(AddExerciseToTrainingDay)}");
+
+                    var newDoc = await _helperService.CreateMissingDoc(userId, _cardioDocument);
+                    if (newDoc == null)
+                    {
+                        _logger.LogCritical($"Cardio document not found UserId: {userId} Method: {nameof(AddExerciseToTrainingDay)}");
+                        return new BasicErrorResponse() { Success = false, ErrorCode = ErrorCodes.NotFound, ErrorMessage = "User daily cardio training document not found, couldnt perform any action." };
+                    }
+
+                    userCardioDocument = newDoc;
+                }
+
+                var targetedDay = userCardioDocument.Trainings.FirstOrDefault(a=>a.Date == model.Date);
+                if(targetedDay == null)
+                {
+                    _logger.LogWarning($"cardio day with given date not found for user. UserId: {userId} Date: {model.Date}");
+                    return new BasicErrorResponse() { Success = false, ErrorCode = ErrorCodes.NotFound, ErrorMessage = "Error occured. User does not have training day for given day." };
+                }
+
+                if (!model.IsMetric)
+                {
+                    model.Distance = model.Distance * 0.3048;
+                    model.Speed = model.Speed * 1.60934;
+                }
+
+                int nextPublicId = targetedDay.Exercises.Select(a => a.PublicId).DefaultIfEmpty(0).Max() + 1;
+
+                var newCardioRecord = new CardioTraining()
+                {
+                    PublicId = nextPublicId,
+                    Name = model.Name ?? $"Exercise {model.ActivityType}",
+                    Desc = model.Desc,
+                    PrivateNotes = model.PrivateNotes,
+                    ExerciseFeeling = model.ExerciseFeeling,
+                    ActivityType = model.ActivityType,
+                    AvgHeartRate = model.AvgHeartRate,
+                    DistanceMeters = model.Distance,
+                    SpeedKmH = model.Speed,
+                    Duration = model.Duration,
+                    ExerciseVisilibity = model.ExerciseVisilibity,
+                    Route = DecodeCordsAndConvertToMongo(model.EncodedRoute),
+                };
+
+                targetedDay.Exercises.Add(newCardioRecord);
+                await _cardioDocument.ReplaceOneAsync(a => a.UserId == userId, userCardioDocument);
+
+                return new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Sucesss" };
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to add exercise to training day. UserId: {userId} Data: {model} Method: {nameof(AddExerciseToTrainingDay)}");
+                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"Error ocdcured: {ex.Message}", Success = false };
+            }
+        }
         public async Task<BasicErrorResponse> JoinChallenge(string userId, int challengeId)
         {
             try
@@ -157,5 +228,49 @@ namespace ElGato_API.Services
                 return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"Error occured: {ex.Message}", Success = false };
             }
         }
+
+
+        private static GeoJsonLineString<GeoJson2DCoordinates> DecodeCordsAndConvertToMongo(string encoded)
+        {
+            if (string.IsNullOrWhiteSpace(encoded))
+            {
+                return new GeoJsonLineString<GeoJson2DCoordinates>(new GeoJsonLineStringCoordinates<GeoJson2DCoordinates>(Enumerable.Empty<GeoJson2DCoordinates>()));
+            }
+
+            var poly = new List<(double lat, double lng)>();
+            int index = 0, len = encoded.Length;
+            int lat = 0, lng = 0;
+
+            while (index < len)
+            {
+                int b, shift = 0, result = 0;
+                do
+                {
+                    b = encoded[index++] - 63;
+                    result |= (b & 0x1F) << shift;
+                    shift += 5;
+                } while (b >= 0x20);
+                lat += ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+
+                shift = 0;
+                result = 0;
+                do
+                {
+                    b = encoded[index++] - 63;
+                    result |= (b & 0x1F) << shift;
+                    shift += 5;
+                } while (b >= 0x20);
+                lng += ((result & 1) != 0 ? ~(result >> 1) : (result >> 1));
+
+                poly.Add((lat / 1E5, lng / 1E5));
+            }
+
+            var geoCoords = poly.Select(p => new GeoJson2DCoordinates(p.lng, p.lat)).ToList();
+
+            var lineStringCoords = new GeoJsonLineStringCoordinates<GeoJson2DCoordinates>(geoCoords);
+            return new GeoJsonLineString<GeoJson2DCoordinates>(lineStringCoords);
+        }
+
+
     }
 }
