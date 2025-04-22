@@ -1,5 +1,6 @@
 ﻿using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver.GeoJsonObjectModel;
+using System.Text.Json.Serialization;
 
 namespace ElGato_API.ModelsMongo.Cardio
 {
@@ -17,6 +18,7 @@ namespace ElGato_API.ModelsMongo.Cardio
         public int AvgHeartRate { get; set; }
 
         [BsonElement("route")]
+        [JsonIgnore]
         public GeoJsonLineString<GeoJson2DCoordinates>? Route { get; set; }
 
         public ActivityType ActivityType { get; set; } = ActivityType.Workout;

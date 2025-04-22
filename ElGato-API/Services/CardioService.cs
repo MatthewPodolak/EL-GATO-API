@@ -1,14 +1,18 @@
 ﻿using ElGato_API.Data;
 using ElGato_API.Interfaces;
+using ElGato_API.Models.Training;
 using ElGato_API.Models.User;
 using ElGato_API.ModelsMongo.Cardio;
+using ElGato_API.ModelsMongo.History;
 using ElGato_API.ModelsMongo.Training;
 using ElGato_API.VM.Cardio;
 using ElGato_API.VMO.Cardio;
 using ElGato_API.VMO.ErrorResponse;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using MongoDB.Driver;
 using MongoDB.Driver.GeoJsonObjectModel;
+using System.Net.Sockets;
 using System.Text;
 
 namespace ElGato_API.Services
@@ -19,12 +23,15 @@ namespace ElGato_API.Services
         private readonly ILogger<CardioService> _logger;
         private readonly IHelperService _helperService;
         private readonly IMongoCollection<DailyCardioDocument> _cardioDocument;
+        private readonly IMongoCollection<CardioHistoryDocument> _cardioHistoryDocument;
         public CardioService(AppDbContext context, ILogger<CardioService> logger, IMongoDatabase database, IHelperService helperService)
         {
             _context = context;
             _logger = logger;
             _helperService = helperService;
             _cardioDocument = database.GetCollection<DailyCardioDocument>("DailyCardio");
+            _cardioHistoryDocument = database.GetCollection<CardioHistoryDocument>("CardioHistory");
+
         }
 
         public async Task<(BasicErrorResponse error, List<ChallengeVMO>? data)> GetActiveChallenges(string userId)
@@ -135,6 +142,99 @@ namespace ElGato_API.Services
             }
         }
 
+        public async Task<(BasicErrorResponse error, CardioTrainingDayVMO data)> GetTrainingDay(string userId, DateTime date)
+        {
+            try
+            {
+                var userCardioDocument = await _cardioDocument.Find(a=>a.UserId == userId).FirstOrDefaultAsync();
+
+                if (userCardioDocument == null)
+                {
+                    _logger.LogWarning($"User cardio document not found. Creating. UserId: {userId}");
+                    var newDoc = await _helperService.CreateMissingDoc(userId, _cardioDocument);
+                    if (newDoc == null)
+                    {
+                        _logger.LogCritical($"Unable to create new cardio document for user. UserId: {userId} Method: {nameof(GetTrainingDay)}");
+                        return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Failed, ErrorMessage = $"User cardio docuemnt non existing.", Success = false }, new CardioTrainingDayVMO());
+                    }
+
+                    userCardioDocument = newDoc;
+                }
+
+                var targetedDay = userCardioDocument.Trainings.FirstOrDefault(a => a.Date == date);
+                if (targetedDay == null && userCardioDocument.Trainings != null && userCardioDocument.Trainings.Count() >= 7)
+                {
+                    var oldestTraining = userCardioDocument.Trainings.OrderBy(dp => dp.Date).First();
+                    await MoveCardioTrainingToHistory(userId, oldestTraining);
+
+                    var update = Builders<DailyCardioDocument>.Update.PullFilter(d => d.Trainings, dp => dp.Date == oldestTraining.Date);
+                    await _cardioDocument.UpdateOneAsync(d => d.UserId == userId, update);
+
+                    //insert new empty
+                    DailyCardioPlan trainingUpd = new DailyCardioPlan()
+                    {
+                        Date = date,
+                        Exercises = new List<CardioTraining>(),
+                    };
+
+                    var updated = Builders<DailyCardioDocument>.Update.Push(d => d.Trainings, trainingUpd);
+                    await _cardioDocument.UpdateOneAsync(d => d.UserId == userId, updated);
+
+                    return (new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess, empty" }, new CardioTrainingDayVMO() { Date = date, Exercises = new List<CardioTrainingDayExercviseVMO>() });
+                }
+
+                if(targetedDay == null && userCardioDocument.Trainings.Count < 7)
+                {
+                    //insert new empty
+                    DailyCardioPlan trainingUpd = new DailyCardioPlan()
+                    {
+                        Date = date,
+                        Exercises = new List<CardioTraining>(),
+                    };
+
+                    var updated = Builders<DailyCardioDocument>.Update.Push(d => d.Trainings, trainingUpd);
+                    await _cardioDocument.UpdateOneAsync(d => d.UserId == userId, updated);
+
+                    return (new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess, empty" }, new CardioTrainingDayVMO() { Date = date, Exercises = new List<CardioTrainingDayExercviseVMO>() });
+                }
+
+                var vmo = new CardioTrainingDayVMO() { Date = date, Exercises = new List<CardioTrainingDayExercviseVMO>() };
+
+                var exerciseType = targetedDay.Exercises.Select(a => a.ActivityType).Distinct().ToList();
+                Dictionary<ActivityType, PastCardioTrainingData> pastData = new Dictionary<ActivityType, PastCardioTrainingData>();
+                foreach (var activityType in exerciseType)
+                {
+                    pastData[activityType] = await GetPastCardioData(userId, activityType);
+                }
+
+                foreach (var activity in targetedDay.Exercises)
+                {
+                    pastData.TryGetValue(activity.ActivityType, out var history);
+
+                    var trainingRec = new CardioTrainingDayExercviseVMO()
+                    {
+                        ExerciseData = targetedDay.Exercises,
+                        PastData = new PastCardioTrainingData()
+                        {
+                            AvgHeartRate = history.AvgHeartRate,
+                            DistanceMeters = history.DistanceMeters,
+                            Duration = history.Duration,
+                            SpeedKmh = history.SpeedKmh,
+                        }
+                    };
+
+                    vmo.Exercises.Add(trainingRec);
+                }
+
+                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess", Success = true }, vmo);
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to retrive cardio training data for UserId: {userId} Date: {date} Method: {nameof(GetTrainingDay)}");
+                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"Error occured: {ex.Message}", Success = false }, new CardioTrainingDayVMO());
+            }
+        }
+
         public async Task<BasicErrorResponse> AddExerciseToTrainingDay(string userId, AddCardioExerciseVM model)
         {
             try
@@ -154,7 +254,7 @@ namespace ElGato_API.Services
                     userCardioDocument = newDoc;
                 }
 
-                var targetedDay = userCardioDocument.Trainings.FirstOrDefault(a=>a.Date == model.Date);
+                var targetedDay = userCardioDocument.Trainings.FirstOrDefault(a=>a.Date.Date == model.Date.Date);
                 if(targetedDay == null)
                 {
                     _logger.LogWarning($"cardio day with given date not found for user. UserId: {userId} Date: {model.Date}");
@@ -271,6 +371,111 @@ namespace ElGato_API.Services
             return new GeoJsonLineString<GeoJson2DCoordinates>(lineStringCoords);
         }
 
+        private async Task MoveCardioTrainingToHistory(string userId, DailyCardioPlan training)
+        {
+            var userCardioHistoryDocument = await _cardioHistoryDocument.Find(d => d.UserId == userId).FirstOrDefaultAsync();
 
+            if (userCardioHistoryDocument == null)
+            {
+                var cardioHistoryDoc = new CardioHistoryDocument
+                {
+                    UserId = userId,
+                    Exercises = new List<CardioHistoryExercise>()
+                };
+
+                foreach (var activity in training.Exercises)
+                {
+                    var newExerciseGroup = new CardioHistoryExercise
+                    {
+                        ActivityType = activity.ActivityType,
+                        ExercisesData = new List<HistoryCardioExerciseData>
+                        {
+                            new HistoryCardioExerciseData
+                            {
+                                ExerciseFeeling     = activity.ExerciseFeeling,
+                                AvgHeartRate        = activity.AvgHeartRate,
+                                Date                = training.Date,
+                                Desc                = activity.Desc,
+                                DistanceMeters      = activity.DistanceMeters,
+                                Duration            = activity.Duration,
+                                ExerciseVisilibity  = activity.ExerciseVisilibity,
+                                Name                = activity.Name,
+                                PrivateNotes        = activity.PrivateNotes,
+                                Route               = activity.Route,
+                                SpeedKmH            = activity.SpeedKmH,
+                            }
+                        }
+                    };
+                    cardioHistoryDoc.Exercises.Add(newExerciseGroup);
+                }
+
+                await _cardioHistoryDocument.InsertOneAsync(cardioHistoryDoc);
+                return;
+            }
+
+            foreach (var activity in training.Exercises)
+            {
+                var existingGroup = userCardioHistoryDocument.Exercises.FirstOrDefault(e => e.ActivityType == activity.ActivityType);
+
+                var newRecord = new HistoryCardioExerciseData
+                {
+                    ExerciseFeeling = activity.ExerciseFeeling,
+                    AvgHeartRate = activity.AvgHeartRate,
+                    Date = training.Date,
+                    Desc = activity.Desc,
+                    DistanceMeters = activity.DistanceMeters,
+                    Duration = activity.Duration,
+                    ExerciseVisilibity = activity.ExerciseVisilibity,
+                    Name = activity.Name,
+                    PrivateNotes = activity.PrivateNotes,
+                    Route = activity.Route,
+                    SpeedKmH = activity.SpeedKmH,
+                };
+
+                if (existingGroup != null)
+                {
+                    existingGroup.ExercisesData.Add(newRecord);
+                }
+                else
+                {
+                    var newGroup = new CardioHistoryExercise
+                    {
+                        ActivityType = activity.ActivityType,
+                        ExercisesData = new List<HistoryCardioExerciseData> { newRecord }
+                    };
+
+                    userCardioHistoryDocument.Exercises.Add(newGroup);
+                }
+            }
+
+            await _cardioHistoryDocument.ReplaceOneAsync(d => d.UserId == userId, userCardioHistoryDocument);
+        }
+
+        private async Task<PastCardioTrainingData> GetPastCardioData(string userId, ActivityType type)
+        {
+            var pastData = new PastCardioTrainingData()
+            {
+                AvgHeartRate = 0,
+                SpeedKmh = 0,
+                DistanceMeters = 0,
+                Duration = TimeSpan.Zero,
+            };
+
+            var userHistoryDoc = await _cardioHistoryDocument.Find(a=>a.UserId == userId).FirstOrDefaultAsync();
+            if (userHistoryDoc != null)
+            {
+                var target = userHistoryDoc.Exercises.Find(a=>a.ActivityType == type);
+                if(target != null)
+                {
+                    var mostRecent = target.ExercisesData.OrderByDescending(e => e.Date).First();
+                    pastData.AvgHeartRate = mostRecent.AvgHeartRate;
+                    pastData.Duration = mostRecent.Duration;
+                    pastData.DistanceMeters = mostRecent.DistanceMeters;
+                    pastData.SpeedKmh = mostRecent.SpeedKmH;
+                }
+            }
+
+            return pastData;
+        }
     }
 }
