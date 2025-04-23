@@ -31,7 +31,6 @@ namespace ElGato_API.Services
             _helperService = helperService;
             _cardioDocument = database.GetCollection<DailyCardioDocument>("DailyCardio");
             _cardioHistoryDocument = database.GetCollection<CardioHistoryDocument>("CardioHistory");
-
         }
 
         public async Task<(BasicErrorResponse error, List<ChallengeVMO>? data)> GetActiveChallenges(string userId)
@@ -476,6 +475,43 @@ namespace ElGato_API.Services
             }
 
             return pastData;
+        }
+
+        public async Task<BasicErrorResponse> DeleteExercisesFromCardioTrainingDay(string userId, DeleteExercisesFromCardioTrainingVM model)
+        {
+            try
+            {
+                var userCardioDocument = await _cardioDocument.Find(a=>a.UserId == userId).FirstOrDefaultAsync();
+                if (userCardioDocument == null)
+                {
+                    _logger.LogWarning($"User daily cardio document non existing. creating. UserId: {userId} Method: {nameof(DeleteExercisesFromCardioTrainingDay)}");
+                    await _helperService.CreateMissingDoc(userId, _cardioDocument);
+
+                    return new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, ErrorMessage = "Couldnt perform deletion. User cardio document not found.", Success = false };
+                }
+
+                var targetDay = userCardioDocument.Trainings.FirstOrDefault(a=>a.Date.Date == model.Date.Date);
+                if(targetDay == null)
+                {
+                    _logger.LogWarning($"Couldnt find cardio training for user in given period. UserId: {userId} Date: {model.Date} Method: {nameof(DeleteExercisesFromCardioTrainingDay)}");
+                    return new BasicErrorResponse() { Success = false, ErrorCode = ErrorCodes.NotFound, ErrorMessage = "Couldnt find and trainings for given date. Date invalid." };
+                }
+
+                var removedCount = targetDay.Exercises.RemoveAll(e => model.ExercisesIdToRemove.Contains(e.PublicId));
+                if (removedCount == 0)
+                {
+                    _logger.LogWarning("No exercises removed: no matching IDs found for UserId {UserId} on Date {Date}", userId, model.Date);
+                }
+
+                await _cardioDocument.ReplaceOneAsync(a => a.UserId == userId, userCardioDocument);
+                return new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Sucesss" };
+
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to remove exercises from cardio training day. UserId: {userId} Data: {model} Method: {nameof(DeleteExercisesFromCardioTrainingDay)}");
+                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false };
+            }
         }
     }
 }

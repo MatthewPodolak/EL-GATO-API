@@ -186,5 +186,41 @@ namespace ElGato_API.Controllers
                 return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured: {ex.Message}", Success = false });
             }
         }
+
+        [HttpDelete]
+        [Authorize(Policy = "user")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> DeleteExercisesFromCardioTrainingDay([FromBody] DeleteExercisesFromCardioTrainingVM model)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return StatusCode(400, new BasicErrorResponse() { Success = false, ErrorMessage = $"Model state not valid. Check {nameof(DeleteExercisesFromCardioTrainingVM)}", ErrorCode = ErrorCodes.ModelStateNotValid }); ;
+                }
+
+                var userId = _jwtService.GetUserIdClaim();
+
+                var res = await _cardioService.DeleteExercisesFromCardioTrainingDay(userId, model);
+                if (!res.Success)
+                {
+                    return res.ErrorCode switch
+                    {
+                        ErrorCodes.Internal => StatusCode(500, res),
+                        ErrorCodes.NotFound => NotFound(res),
+                        _ => BadRequest(res)
+                    };
+                }
+
+                return Ok();
+            }
+            catch(Exception ex)
+            {
+                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = ex.Message, Success = false });
+            }
+        }
     }
 }

@@ -11,5 +11,6 @@ namespace ElGato_API.Interfaces
         Task<(BasicErrorResponse error, CardioTrainingDayVMO data)> GetTrainingDay(string userId, DateTime date);
         Task<BasicErrorResponse> AddExerciseToTrainingDay(string userId, AddCardioExerciseVM model);
         Task<BasicErrorResponse> JoinChallenge(string userId, int challengeId);
+        Task<BasicErrorResponse> DeleteExercisesFromCardioTrainingDay(string userId, DeleteExercisesFromCardioTrainingVM model);
     }
 }
