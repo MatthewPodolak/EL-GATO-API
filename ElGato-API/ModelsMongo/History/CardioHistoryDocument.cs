@@ -29,8 +29,7 @@ namespace ElGato_API.ModelsMongo.History
         public double SpeedKmH { get; set; }
         public int AvgHeartRate { get; set; }
 
-        [BsonElement("route")]
-        public GeoJsonLineString<GeoJson2DCoordinates>? Route { get; set; }
+        public string? Route { get; set; }
         public ExerciseFeeling ExerciseFeeling { get; set; } = ExerciseFeeling.Neutral;
         public ExerciseVisilibity ExerciseVisilibity { get; set; } = ExerciseVisilibity.Public;
     }

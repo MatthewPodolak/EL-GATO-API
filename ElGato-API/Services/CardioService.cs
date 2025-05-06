@@ -281,7 +281,7 @@ namespace ElGato_API.Services
                     SpeedKmH = model.Speed,
                     Duration = model.Duration,
                     ExerciseVisilibity = model.ExerciseVisilibity,
-                    Route = DecodeCordsAndConvertToMongo(model.EncodedRoute),
+                    Route = model.EncodedRoute,
                 };
 
                 targetedDay.Exercises.Add(newCardioRecord);
