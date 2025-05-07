@@ -28,6 +28,7 @@ namespace ElGato_API.ModelsMongo.History
         public double DistanceMeters { get; set; }
         public double SpeedKmH { get; set; }
         public int AvgHeartRate { get; set; }
+        public int CaloriesBurnt {  get; set; }
 
         public string? Route { get; set; }
         public ExerciseFeeling ExerciseFeeling { get; set; } = ExerciseFeeling.Neutral;

@@ -212,7 +212,7 @@ namespace ElGato_API.Services
 
                     var trainingRec = new CardioTrainingDayExercviseVMO()
                     {
-                        ExerciseData = targetedDay.Exercises,
+                        ExerciseData = activity,
                         PastData = new PastCardioTrainingData()
                         {
                             AvgHeartRate = history.AvgHeartRate,
@@ -282,6 +282,7 @@ namespace ElGato_API.Services
                     Duration = model.Duration,
                     ExerciseVisilibity = model.ExerciseVisilibity,
                     Route = model.EncodedRoute,
+                    CaloriesBurnt = model.CaloriesBurnt,
                 };
 
                 targetedDay.Exercises.Add(newCardioRecord);
@@ -402,6 +403,7 @@ namespace ElGato_API.Services
                                 PrivateNotes        = activity.PrivateNotes,
                                 Route               = activity.Route,
                                 SpeedKmH            = activity.SpeedKmH,
+                                CaloriesBurnt = activity.CaloriesBurnt,
                             }
                         }
                     };
@@ -429,6 +431,7 @@ namespace ElGato_API.Services
                     PrivateNotes = activity.PrivateNotes,
                     Route = activity.Route,
                     SpeedKmH = activity.SpeedKmH,
+                    CaloriesBurnt = activity.CaloriesBurnt
                 };
 
                 if (existingGroup != null)
@@ -458,6 +461,7 @@ namespace ElGato_API.Services
                 SpeedKmh = 0,
                 DistanceMeters = 0,
                 Duration = TimeSpan.Zero,
+                CaloriesBurnt = 0,
             };
 
             var userHistoryDoc = await _cardioHistoryDocument.Find(a=>a.UserId == userId).FirstOrDefaultAsync();
@@ -471,6 +475,7 @@ namespace ElGato_API.Services
                     pastData.Duration = mostRecent.Duration;
                     pastData.DistanceMeters = mostRecent.DistanceMeters;
                     pastData.SpeedKmh = mostRecent.SpeedKmH;
+                    pastData.CaloriesBurnt = mostRecent.CaloriesBurnt;
                 }
             }
 

@@ -17,9 +17,16 @@ namespace ElGato_API.ModelsMongo.Cardio
         public double SpeedMph => SpeedKmH * 0.621371;
         public int AvgHeartRate { get; set; }
         public string? Route { get; set; }
+        public int CaloriesBurnt { get; set; }
+        public int FeelingPercentage { get; set; }
 
+        [JsonConverter(typeof(JsonStringEnumConverter))]
         public ActivityType ActivityType { get; set; } = ActivityType.Workout;
+
+        [JsonConverter(typeof(JsonStringEnumConverter))]
         public ExerciseFeeling ExerciseFeeling { get; set; } = ExerciseFeeling.Neutral;
+
+        [JsonConverter(typeof(JsonStringEnumConverter))]
         public ExerciseVisilibity ExerciseVisilibity { get; set; } = ExerciseVisilibity.Public;
 
     }

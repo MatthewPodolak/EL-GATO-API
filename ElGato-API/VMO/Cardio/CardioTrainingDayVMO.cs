@@ -11,7 +11,7 @@ namespace ElGato_API.VMO.Cardio
 
     public class CardioTrainingDayExercviseVMO
     {
-        public List<CardioTraining>? ExerciseData { get; set; }
+        public CardioTraining? ExerciseData { get; set; }
         public PastCardioTrainingData? PastData { get; set; }
     }
 
@@ -21,5 +21,6 @@ namespace ElGato_API.VMO.Cardio
         public double DistanceMeters { get; set; }
         public int AvgHeartRate { get; set; } = 0;
         public TimeSpan Duration { get; set; }
+        public int CaloriesBurnt { get; set; } = 0;
     }
 }

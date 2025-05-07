@@ -23,6 +23,8 @@ namespace ElGato_API.VM.Cardio
         public double Speed { get; set; }
 
         public int AvgHeartRate { get; set; } = 0;
+        public int FeelingPercentage { get; set; } = 0;
+        public int CaloriesBurnt { get; set; } = 0;
 
         [Required(ErrorMessage = "Route is required")]
         public string EncodedRoute { get; set; }
