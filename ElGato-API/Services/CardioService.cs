@@ -8,6 +8,7 @@ using ElGato_API.ModelsMongo.Training;
 using ElGato_API.VM.Cardio;
 using ElGato_API.VMO.Cardio;
 using ElGato_API.VMO.ErrorResponse;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using MongoDB.Driver;
@@ -482,6 +483,50 @@ namespace ElGato_API.Services
             return pastData;
         }
 
+        public async Task<BasicErrorResponse> ChangeExerciseVisilibity(string userId, ChangeExerciseVisilibityVM model)
+        {
+            try
+            {
+                var userCardioDocument = await _cardioDocument.Find(a => a.UserId == userId).FirstOrDefaultAsync();
+                if (userCardioDocument == null)
+                {
+                    _logger.LogWarning($"User daily cardio document non existing. creating. UserId: {userId} Method: {nameof(ChangeExerciseVisilibity)}");
+                    await _helperService.CreateMissingDoc(userId, _cardioDocument);
+
+                    return new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, ErrorMessage = "Couldnt perform patch. User cardio document not found.", Success = false };
+                }
+
+                var targetDay = userCardioDocument.Trainings.FirstOrDefault(a => a.Date.Date == model.Date.Date);
+                if (targetDay == null)
+                {
+                    _logger.LogWarning($"Couldnt find cardio training for user in given period. UserId: {userId} Date: {model.Date} Method: {nameof(ChangeExerciseVisilibity)}");
+                    return new BasicErrorResponse() { Success = false, ErrorCode = ErrorCodes.NotFound, ErrorMessage = "Couldnt find and trainings for given date. Date invalid." };
+                }
+
+                var targetExercise = targetDay.Exercises.FirstOrDefault(a => a.PublicId == model.ExerciseId);
+                if (targetExercise == null)
+                {
+                    _logger.LogWarning($"Couldn't find exercise with given id in user cardio training. Date: {model.Date} ExerciseId: {model.ExerciseId} Method: {nameof(ChangeExerciseVisilibity)}");
+                    return new BasicErrorResponse() { Success = false, ErrorCode = ErrorCodes.NotFound, ErrorMessage = "Couldn't find exercise with given id in user cardio training." };
+                }
+
+                targetExercise.ExerciseVisilibity = model.State;
+
+                var res = await _cardioDocument.ReplaceOneAsync(d => d.Id == userCardioDocument.Id, userCardioDocument);
+                if (!res.IsAcknowledged && res.ModifiedCount != 1)
+                {
+                    return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = "Update faild.", Success = false };
+                }
+
+                return new BasicErrorResponse() { ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess", Success = true };
+            } 
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Couldnt change exercise visilibity. UserId: {userId} Data: {model} Method: {nameof(ChangeExerciseVisilibity)}");
+                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false };
+            }
+        }
+
         public async Task<BasicErrorResponse> DeleteExercisesFromCardioTrainingDay(string userId, DeleteExercisesFromCardioTrainingVM model)
         {
             try
@@ -518,5 +563,6 @@ namespace ElGato_API.Services
                 return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false };
             }
         }
+       
     }
 }
