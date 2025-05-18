@@ -21,17 +21,10 @@ namespace ElGato_API.ModelsMongo.History
     public class HistoryCardioExerciseData
     {
         public DateTime Date { get; set; }
-        public string Name { get; set; }
-        public string? Desc { get; set; }
-        public string? PrivateNotes { get; set; }
         public TimeSpan Duration { get; set; }
         public double DistanceMeters { get; set; }
         public double SpeedKmH { get; set; }
         public int AvgHeartRate { get; set; }
         public int CaloriesBurnt {  get; set; }
-
-        public string? Route { get; set; }
-        public ExerciseFeeling ExerciseFeeling { get; set; } = ExerciseFeeling.Neutral;
-        public ExerciseVisilibity ExerciseVisilibity { get; set; } = ExerciseVisilibity.Public;
     }
 }

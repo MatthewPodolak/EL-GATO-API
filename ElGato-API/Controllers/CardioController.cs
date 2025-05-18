@@ -193,7 +193,7 @@ namespace ElGato_API.Controllers
         [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> ChangeExerciseVisilibity(ChangeExerciseVisilibityVM model)
+        public async Task<IActionResult> ChangeExerciseVisilibity([FromBody] ChangeExerciseVisilibityVM model)
         {
             try
             {

@@ -38,5 +38,8 @@ namespace ElGato_API.VM.Cardio
 
         [Required(ErrorMessage = "ExerciseVisilibity is required")]
         public ExerciseVisilibity ExerciseVisilibity { get; set; }
+
+        public List<SpeedInTime>? SpeedInTime { get; set; } = new List<SpeedInTime>();
+        public List<HeartRateInTime>? HeartRateInTime { get; set; } = new List<HeartRateInTime>();
     }
 }

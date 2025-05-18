@@ -19,6 +19,8 @@ namespace ElGato_API.ModelsMongo.Cardio
         public string? Route { get; set; }
         public int CaloriesBurnt { get; set; }
         public int FeelingPercentage { get; set; }
+        public List<SpeedInTime>? SpeedInTime { get; set; } = new List<SpeedInTime>();
+        public List<HeartRateInTime>? HeartRateInTime { get; set; } = new List<HeartRateInTime>();
 
         [JsonConverter(typeof(JsonStringEnumConverter))]
         public ActivityType ActivityType { get; set; } = ActivityType.Workout;
@@ -29,6 +31,19 @@ namespace ElGato_API.ModelsMongo.Cardio
         [JsonConverter(typeof(JsonStringEnumConverter))]
         public ExerciseVisilibity ExerciseVisilibity { get; set; } = ExerciseVisilibity.Public;
 
+    }
+
+    public class SpeedInTime
+    {
+        public TimeSpan TimeStamp { get; set; }
+        public double SpeedKmh { get; set; }
+        public double SpeedMph => SpeedKmh * 0.621371;
+    }
+
+    public class HeartRateInTime
+    {
+        public TimeSpan TimeStamp { get; set; }
+        public int HeartRate { get; set; }
     }
 
     public enum ExerciseFeeling

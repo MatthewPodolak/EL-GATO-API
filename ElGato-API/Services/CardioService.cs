@@ -25,6 +25,7 @@ namespace ElGato_API.Services
         private readonly IHelperService _helperService;
         private readonly IMongoCollection<DailyCardioDocument> _cardioDocument;
         private readonly IMongoCollection<CardioHistoryDocument> _cardioHistoryDocument;
+        private readonly IMongoCollection<CardioDailyHistoryDocument> _cardioDailyHistoryDocument;
         public CardioService(AppDbContext context, ILogger<CardioService> logger, IMongoDatabase database, IHelperService helperService)
         {
             _context = context;
@@ -32,6 +33,7 @@ namespace ElGato_API.Services
             _helperService = helperService;
             _cardioDocument = database.GetCollection<DailyCardioDocument>("DailyCardio");
             _cardioHistoryDocument = database.GetCollection<CardioHistoryDocument>("CardioHistory");
+            _cardioDailyHistoryDocument = database.GetCollection<CardioDailyHistoryDocument>("CardioHistoryDaily");
         }
 
         public async Task<(BasicErrorResponse error, List<ChallengeVMO>? data)> GetActiveChallenges(string userId)
@@ -165,7 +167,8 @@ namespace ElGato_API.Services
                 if (targetedDay == null && userCardioDocument.Trainings != null && userCardioDocument.Trainings.Count() >= 7)
                 {
                     var oldestTraining = userCardioDocument.Trainings.OrderBy(dp => dp.Date).First();
-                    await MoveCardioTrainingToHistory(userId, oldestTraining);
+                    await MoveDailyCardioPlanToHistory(userId, oldestTraining);
+                    await MoveCardioTrainingToHistory(userId, oldestTraining); //this might cause issues -> preferably rethink its placement
 
                     var update = Builders<DailyCardioDocument>.Update.PullFilter(d => d.Trainings, dp => dp.Date == oldestTraining.Date);
                     await _cardioDocument.UpdateOneAsync(d => d.UserId == userId, update);
@@ -284,6 +287,9 @@ namespace ElGato_API.Services
                     ExerciseVisilibity = model.ExerciseVisilibity,
                     Route = model.EncodedRoute,
                     CaloriesBurnt = model.CaloriesBurnt,
+                    FeelingPercentage = model.FeelingPercentage,
+                    HeartRateInTime = model.HeartRateInTime,
+                    SpeedInTime = model.SpeedInTime,
                 };
 
                 targetedDay.Exercises.Add(newCardioRecord);
@@ -372,6 +378,46 @@ namespace ElGato_API.Services
             return new GeoJsonLineString<GeoJson2DCoordinates>(lineStringCoords);
         }
 
+        private async Task MoveDailyCardioPlanToHistory(string userId, DailyCardioPlan trainings)
+        {
+            var userCardioDailyHistoryDoc = await _cardioDailyHistoryDocument.Find(a=>a.UserId == userId).FirstOrDefaultAsync();
+            if(userCardioDailyHistoryDoc == null)
+            {
+                var newHistoryDoc = new CardioDailyHistoryDocument()
+                {
+                    UserId = userId,
+                    Trainings = new List<CardioDailyHistoryTraining>(),
+                };
+
+                foreach(var training in trainings.Exercises)
+                {
+                    var newExercise = new CardioDailyHistoryTraining()
+                    {
+                        Date = trainings.Date,
+                        CardioTraining = training,
+                    };
+
+                    newHistoryDoc.Trainings.Add(newExercise);
+                }
+
+                await _cardioDailyHistoryDocument.InsertOneAsync(newHistoryDoc);
+                return;
+            }
+
+            foreach(var training in trainings.Exercises)
+            {
+                var newExercise = new CardioDailyHistoryTraining()
+                {
+                    Date = trainings.Date,
+                    CardioTraining = training,
+                };
+
+                userCardioDailyHistoryDoc.Trainings.Add(newExercise);
+            }
+
+            await _cardioDailyHistoryDocument.ReplaceOneAsync(d => d.UserId == userId, userCardioDailyHistoryDoc);
+        }
+
         private async Task MoveCardioTrainingToHistory(string userId, DailyCardioPlan training)
         {
             var userCardioHistoryDocument = await _cardioHistoryDocument.Find(d => d.UserId == userId).FirstOrDefaultAsync();
@@ -393,18 +439,12 @@ namespace ElGato_API.Services
                         {
                             new HistoryCardioExerciseData
                             {
-                                ExerciseFeeling     = activity.ExerciseFeeling,
                                 AvgHeartRate        = activity.AvgHeartRate,
                                 Date                = training.Date,
-                                Desc                = activity.Desc,
                                 DistanceMeters      = activity.DistanceMeters,
                                 Duration            = activity.Duration,
-                                ExerciseVisilibity  = activity.ExerciseVisilibity,
-                                Name                = activity.Name,
-                                PrivateNotes        = activity.PrivateNotes,
-                                Route               = activity.Route,
                                 SpeedKmH            = activity.SpeedKmH,
-                                CaloriesBurnt = activity.CaloriesBurnt,
+                                CaloriesBurnt       = activity.CaloriesBurnt,
                             }
                         }
                     };
@@ -421,16 +461,10 @@ namespace ElGato_API.Services
 
                 var newRecord = new HistoryCardioExerciseData
                 {
-                    ExerciseFeeling = activity.ExerciseFeeling,
                     AvgHeartRate = activity.AvgHeartRate,
                     Date = training.Date,
-                    Desc = activity.Desc,
                     DistanceMeters = activity.DistanceMeters,
                     Duration = activity.Duration,
-                    ExerciseVisilibity = activity.ExerciseVisilibity,
-                    Name = activity.Name,
-                    PrivateNotes = activity.PrivateNotes,
-                    Route = activity.Route,
                     SpeedKmH = activity.SpeedKmH,
                     CaloriesBurnt = activity.CaloriesBurnt
                 };
