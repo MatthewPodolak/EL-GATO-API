@@ -1,6 +1,7 @@
 ﻿using ElGato_API.Data.JWT;
 using ElGato_API.Interfaces;
 using ElGato_API.VM.Cardio;
+using ElGato_API.VMO.Achievments;
 using ElGato_API.VMO.Cardio;
 using ElGato_API.VMO.ErrorResponse;
 using Microsoft.AspNetCore.Authorization;
@@ -15,10 +16,12 @@ namespace ElGato_API.Controllers
     {
         private readonly IJwtService _jwtService;
         private readonly ICardioService _cardioService;
-        public CardioController(IJwtService jwtService, ICardioService cardioService)
+        private readonly IAchievmentService _achievmentService;
+        public CardioController(IJwtService jwtService, ICardioService cardioService, IAchievmentService achievmentService)
         {
             _jwtService = jwtService;
             _cardioService = cardioService;
+            _achievmentService = achievmentService;
         }
 
         [HttpGet]
@@ -113,7 +116,7 @@ namespace ElGato_API.Controllers
 
         [HttpPost]
         [Authorize(Policy = "user")]
-        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(AchievmentResponse), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
@@ -144,7 +147,17 @@ namespace ElGato_API.Controllers
                     };
                 }
 
-                return Ok();
+                var achievmentFamilyResult = await _achievmentService.GetCurrentAchivmentIdFromFamily("CARDIO", userId);
+                if (achievmentFamilyResult.error.Success && achievmentFamilyResult.achievmentName != null)
+                {
+                    var ach = await _achievmentService.IncrementAchievmentProgress(achievmentFamilyResult.achievmentName, userId);
+                    if (ach.error.Success)
+                    {
+                        return Ok(ach.ach);
+                    }
+                }
+
+                return Ok(new AchievmentResponse() { Status = new BasicErrorResponse() { Success = true, ErrorMessage = "Sucess", ErrorCode = ErrorCodes.None} });
             }
             catch (Exception ex)
             {
@@ -255,7 +268,7 @@ namespace ElGato_API.Controllers
                         _ => BadRequest(res)
                     };
                 }
-
+               
                 return Ok();
             }
             catch(Exception ex)

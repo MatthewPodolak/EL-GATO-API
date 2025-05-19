@@ -79,6 +79,19 @@ namespace ElGato_API.Data
                 .HasForeignKey(ac => ac.ChallengeId)
                 .IsRequired();
 
+
+            modelBuilder.Entity<UserBadges>()
+                .HasOne(ub => ub.User)
+                .WithMany(u => u.UserBadges)
+                .HasForeignKey(ub => ub.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<UserBadges>()
+                .HasOne(ub => ub.Challange)
+                .WithMany()
+                .HasForeignKey(ub => ub.ChallangeId)
+                .OnDelete(DeleteBehavior.Cascade);
+
             base.OnModelCreating(modelBuilder);
         }
 
@@ -95,5 +108,6 @@ namespace ElGato_API.Data
         public DbSet<Challange> Challanges { get; set; }
         public DbSet<Creator> Creators { get; set; }
         public DbSet<ActiveChallange> ActiveChallange { get; set; }
+        public DbSet<UserBadges> UserBadges { get; set; }
     }
 }

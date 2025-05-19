@@ -23,7 +23,6 @@ namespace ElGato_API.Services
             try
             {
                 var user = await _context.AppUser.Include(a => a.Achievments).Where(a => a.Id == userId).FirstOrDefaultAsync();
-
                 if (user == null)
                 {
                     _logger.LogWarning($"User not found while trying inside GetCurrentAchivmentIdFromFamily, for user {userId}");
@@ -74,7 +73,7 @@ namespace ElGato_API.Services
         {
             try
             {
-                AchievmentResponse achRes = new AchievmentResponse();
+                AchievmentResponse achRes = new AchievmentResponse() { Achievment = new AchievmentVMO(), Status = new BasicErrorResponse() };
 
                 var achievment = await _context.Achievment.FirstOrDefaultAsync(a => a.StringId == achievmentStringId);
                 if (achievment == null) { _logger.LogWarning($"User {userId} attempted to access non-existent achievement {achievmentStringId}"); return (new BasicErrorResponse() { Success = false, ErrorMessage = "Given achievments does not exists." }, null); }
@@ -93,10 +92,10 @@ namespace ElGato_API.Services
 
                     if (achievment.Threshold == 1)
                     {
-                        achRes.ExceededThreshold = 1;
-                        achRes.AchievmentEarnedName = achievment.Name;
-                        achRes.AchievmentEarnedImage = achievment.Img;
-                        achRes.GenerativeText = achievment.GenerativeText;
+                        achRes.Achievment.ExceededThreshold = 1;
+                        achRes.Achievment.AchievmentEarnedName = achievment.Name;
+                        achRes.Achievment.AchievmentEarnedImage = achievment.Img;
+                        achRes.Achievment.GenerativeText = achievment.GenerativeText;
 
                         var user = await _context.Users.Include(u => u.Achievments).FirstOrDefaultAsync(u => u.Id == userId);
                         if (user != null)
@@ -109,23 +108,32 @@ namespace ElGato_API.Services
                             await _context.SaveChangesAsync();
                         }
 
+                        achRes.Status.Success = true;
+                        achRes.Status.ErrorMessage = "Sucess";
+                        achRes.Status.ErrorCode = ErrorCodes.None;
                         return (new BasicErrorResponse() { Success = true, }, achRes);
                     }
 
                     await _context.SaveChangesAsync();
-                    return (new BasicErrorResponse() { Success = true, }, null);
+                    return (new BasicErrorResponse() { Success = true, }, new AchievmentResponse() { Status = new BasicErrorResponse() { ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess", Success = true } });
                 }
                 else
                 {
+                    if(achievment.DailyLimit && userCount.LastCount.Date == DateTime.Today)
+                    {
+                        return (new BasicErrorResponse() { Success = true, }, new AchievmentResponse() { Status = new BasicErrorResponse() { ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess", Success = true } });
+                    }
+
                     userCount.Counter += 1;
+                    userCount.LastCount = DateTime.Today;
                     await _context.SaveChangesAsync();
 
                     if (achievment.Threshold == userCount.Counter) 
                     {
-                        achRes.ExceededThreshold = 1;
-                        achRes.AchievmentEarnedName = achievment.Name;
-                        achRes.AchievmentEarnedImage = achievment.Img;
-                        achRes.GenerativeText = achievment.GenerativeText;
+                        achRes.Achievment.ExceededThreshold = 1;
+                        achRes.Achievment.AchievmentEarnedName = achievment.Name;
+                        achRes.Achievment.AchievmentEarnedImage = achievment.Img;
+                        achRes.Achievment.GenerativeText = achievment.GenerativeText;
 
                         var user = await _context.Users.Include(u => u.Achievments).FirstOrDefaultAsync(u => u.Id == userId);
                         if (user != null)
@@ -138,10 +146,13 @@ namespace ElGato_API.Services
                             await _context.SaveChangesAsync();
                         }
 
+                        achRes.Status.Success = true;
+                        achRes.Status.ErrorMessage = "Sucess";
+                        achRes.Status.ErrorCode = ErrorCodes.None;
                         return (new BasicErrorResponse() { Success = true, }, achRes);
                     }
 
-                    return (new BasicErrorResponse() { Success = true, }, null);
+                    return (new BasicErrorResponse() { Success = true, }, new AchievmentResponse() { Status = new BasicErrorResponse() { ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess", Success = true } });
                 }
 
             }

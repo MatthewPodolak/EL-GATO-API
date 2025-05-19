@@ -13,6 +13,7 @@ namespace ElGato_API.Models.User
         public List<Achievment>? Achievments { get; set; } = new List<Achievment>();
         public List<AchievmentCounters> AchivmentCounter { get; set; } = new List<AchievmentCounters>();
         public List<ActiveChallange>? ActiveChallanges { get; set; } = new List<ActiveChallange>();
+        public List<UserBadges>? UserBadges { get; set; } = new List<UserBadges>();
 
         public LayoutSettings? LayoutSettings { get; set; } = new LayoutSettings
         {

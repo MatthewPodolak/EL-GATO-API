@@ -906,7 +906,7 @@ namespace ElGato_API.Services
                     var achievmentRes = await _achievmentService.IncrementAchievmentProgress(currentAchievmentCounter.achievmentName, userId);
                     if (!achievmentRes.error.Success) { return (new BasicErrorResponse() { Success = false, ErrorMessage = achievmentRes.error.ErrorMessage, ErrorCode = ErrorCodes.Failed }, null); }
 
-                    return (new BasicErrorResponse() { Success = true }, achievmentRes.ach ?? null);
+                    return (new BasicErrorResponse() { Success = true }, achievmentRes.ach ?? new AchievmentResponse() { Status = new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess" } });
                 }
              
                 return (new BasicErrorResponse() { Success = true }, null);

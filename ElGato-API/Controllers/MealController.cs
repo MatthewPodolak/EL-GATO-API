@@ -386,7 +386,7 @@ namespace ElGato_API.Controllers
 
                 if (res.ach != null) { return Ok(res.ach); }
 
-                return Ok();
+                return Ok(new AchievmentResponse() { Status = new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" } });
             }
             catch (Exception ex)
             {

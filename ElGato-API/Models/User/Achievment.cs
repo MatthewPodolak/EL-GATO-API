@@ -10,6 +10,7 @@
         public string GenerativeText { get; set; }
         public string Img { get; set; }
         public int Threshold { get; set; }
+        public bool DailyLimit { get; set; } = false;
         public List<AppUser> Users { get; set; } = new List<AppUser>();
     }
 }
