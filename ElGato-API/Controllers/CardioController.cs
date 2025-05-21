@@ -36,7 +36,7 @@ namespace ElGato_API.Controllers
             {
                 var userId = _jwtService.GetUserIdClaim();
 
-                var res = await _cardioService.GetActiveChallenges(userId);
+                var res = await _achievmentService.GetActiveChallenges(userId);
                 if (!res.error.Success)
                 {
                     return res.error.ErrorCode switch
@@ -66,7 +66,7 @@ namespace ElGato_API.Controllers
             {
                 var userId = _jwtService.GetUserIdClaim();
 
-                var res = await _cardioService.GetUserActiveChallenges(userId);
+                var res = await _achievmentService.GetUserActiveChallenges(userId);
                 if (!res.error.Success)
                 {
                     return res.error.ErrorCode switch
@@ -147,14 +147,37 @@ namespace ElGato_API.Controllers
                     };
                 }
 
-                var achievmentFamilyResult = await _achievmentService.GetCurrentAchivmentIdFromFamily("CARDIO", userId);
-                if (achievmentFamilyResult.error.Success && achievmentFamilyResult.achievmentName != null)
+                var badgeTask = _achievmentService.CheckAndAddBadgeProgressForUser(userId, new VM.Achievments.BadgeIncDataVM
                 {
-                    var ach = await _achievmentService.IncrementAchievmentProgress(achievmentFamilyResult.achievmentName, userId);
-                    if (ach.error.Success)
-                    {
-                        return Ok(ach.ach);
-                    }
+                    ActivityType = model.ActivityType,
+                    CaloriesBurnt = model.CaloriesBurnt,
+                    Distance = model.Distance
+                });
+                var familyTaskCardio = _achievmentService.GetCurrentAchivmentIdFromFamily("CARDIO", userId);
+                var familyTaskCalorie = _achievmentService.GetCurrentAchivmentIdFromFamily("CALORIE", userId);
+
+                await Task.WhenAll(badgeTask, familyTaskCardio, familyTaskCalorie);
+                var (badgeIncrement, achievmentFamilyResult, achievmentFamilyResultCalorie) = (badgeTask.Result, familyTaskCardio.Result, familyTaskCalorie.Result);
+
+
+                if(!achievmentFamilyResult.error.Success || achievmentFamilyResult.achievmentName == null || !achievmentFamilyResultCalorie.error.Success || achievmentFamilyResultCalorie.achievmentName == null)
+                {
+                    return Ok(new AchievmentResponse() { Status = new BasicErrorResponse() { Success = true, ErrorMessage = "Sucess", ErrorCode = ErrorCodes.None } });
+                }
+
+                var incrementCardioTask = _achievmentService.IncrementAchievmentProgress(achievmentFamilyResult.achievmentName, userId, 1);
+                var incrementCalorieTask = _achievmentService.IncrementAchievmentProgress(achievmentFamilyResultCalorie.achievmentName, userId, model.CaloriesBurnt);
+
+                await Task.WhenAll(incrementCardioTask, incrementCalorieTask);
+                var (cardioAchRes, calorieAchRes) = (incrementCardioTask.Result, incrementCalorieTask.Result);
+                if (cardioAchRes.error.Success && cardioAchRes.ach.Achievment != null)
+                {
+                    return Ok(cardioAchRes.ach);
+                }
+
+                if (calorieAchRes.error.Success && calorieAchRes.ach.Achievment != null)
+                {
+                    return Ok(calorieAchRes.ach);
                 }
 
                 return Ok(new AchievmentResponse() { Status = new BasicErrorResponse() { Success = true, ErrorMessage = "Sucess", ErrorCode = ErrorCodes.None} });

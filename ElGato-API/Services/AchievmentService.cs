@@ -1,7 +1,11 @@
 ﻿using ElGato_API.Data;
 using ElGato_API.Interfaces;
+using ElGato_API.Models.Feed;
 using ElGato_API.Models.User;
+using ElGato_API.ModelsMongo.Cardio;
+using ElGato_API.VM.Achievments;
 using ElGato_API.VMO.Achievments;
+using ElGato_API.VMO.Cardio;
 using ElGato_API.VMO.ErrorResponse;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,18 +15,23 @@ namespace ElGato_API.Services
     {
         private readonly AppDbContext _context;
         private readonly ILogger<AchievmentService> _logger;
+        private readonly IServiceScopeFactory _scopeFactory;
 
-        public AchievmentService(AppDbContext context, ILogger<AchievmentService> logger) 
+        public AchievmentService(AppDbContext context, ILogger<AchievmentService> logger, IServiceScopeFactory scopeFactory) 
         { 
             _context = context;
             _logger = logger;
+            _scopeFactory = scopeFactory;
         }
 
         public async Task<(BasicErrorResponse error, string? achievmentName)> GetCurrentAchivmentIdFromFamily(string achievmentFamily, string userId)
         {
+            using var scope = _scopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
             try
             {
-                var user = await _context.AppUser.Include(a => a.Achievments).Where(a => a.Id == userId).FirstOrDefaultAsync();
+                var user = await dbContext.AppUser.Include(a => a.Achievments).Where(a => a.Id == userId).FirstOrDefaultAsync();
                 if (user == null)
                 {
                     _logger.LogWarning($"User not found while trying inside GetCurrentAchivmentIdFromFamily, for user {userId}");
@@ -56,7 +65,7 @@ namespace ElGato_API.Services
 
                 string currentAchievmentName = $"{achievmentFamily}_{currentMax + 1}";
 
-                var doesAchievmentExist = await _context.Achievment.FirstOrDefaultAsync(a => a.StringId == currentAchievmentName);
+                var doesAchievmentExist = await dbContext.Achievment.FirstOrDefaultAsync(a => a.StringId == currentAchievmentName);
                 if(doesAchievmentExist == null) { return (new BasicErrorResponse() { Success = true }, null); }
 
                 return (new BasicErrorResponse { Success = true }, currentAchievmentName);
@@ -69,35 +78,38 @@ namespace ElGato_API.Services
         }
 
 
-        public async Task<(BasicErrorResponse error, AchievmentResponse? ach)> IncrementAchievmentProgress(string achievmentStringId, string userId)
+        public async Task<(BasicErrorResponse error, AchievmentResponse? ach)> IncrementAchievmentProgress(string achievmentStringId, string userId, int incValue)
         {
+            using var scope = _scopeFactory.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
             try
             {
                 AchievmentResponse achRes = new AchievmentResponse() { Achievment = new AchievmentVMO(), Status = new BasicErrorResponse() };
 
-                var achievment = await _context.Achievment.FirstOrDefaultAsync(a => a.StringId == achievmentStringId);
+                var achievment = await dbContext.Achievment.FirstOrDefaultAsync(a => a.StringId == achievmentStringId);
                 if (achievment == null) { _logger.LogWarning($"User {userId} attempted to access non-existent achievement {achievmentStringId}"); return (new BasicErrorResponse() { Success = false, ErrorMessage = "Given achievments does not exists." }, null); }
 
-                var userCount = await _context.AchievmentCounters.FirstOrDefaultAsync(a => a.UserId == userId && a.AchievmentId == achievment.Id);
+                var userCount = await dbContext.AchievmentCounters.FirstOrDefaultAsync(a => a.UserId == userId && a.AchievmentId == achievment.Id);
                 if (userCount == null)
                 {
                     AchievmentCounters counter = new AchievmentCounters()
                     {
-                        Counter = 1,
+                        Counter = incValue,
                         AchievmentId = achievment.Id,
                         UserId = userId,
                     };
 
-                    await _context.AchievmentCounters.AddAsync(counter);
+                    await dbContext.AchievmentCounters.AddAsync(counter);
 
-                    if (achievment.Threshold == 1)
+                    if (achievment.Threshold <= incValue)
                     {
-                        achRes.Achievment.ExceededThreshold = 1;
+                        achRes.Achievment.ExceededThreshold = achievment.Threshold;
                         achRes.Achievment.AchievmentEarnedName = achievment.Name;
                         achRes.Achievment.AchievmentEarnedImage = achievment.Img;
                         achRes.Achievment.GenerativeText = achievment.GenerativeText;
 
-                        var user = await _context.Users.Include(u => u.Achievments).FirstOrDefaultAsync(u => u.Id == userId);
+                        var user = await dbContext.Users.Include(u => u.Achievments).FirstOrDefaultAsync(u => u.Id == userId);
                         if (user != null)
                         {
                             if (user.Achievments == null)
@@ -105,7 +117,7 @@ namespace ElGato_API.Services
                                 user.Achievments = new List<Achievment>();
                             }
                             user.Achievments.Add(achievment);                            
-                            await _context.SaveChangesAsync();
+                            await dbContext.SaveChangesAsync();
                         }
 
                         achRes.Status.Success = true;
@@ -114,7 +126,7 @@ namespace ElGato_API.Services
                         return (new BasicErrorResponse() { Success = true, }, achRes);
                     }
 
-                    await _context.SaveChangesAsync();
+                    await dbContext.SaveChangesAsync();
                     return (new BasicErrorResponse() { Success = true, }, new AchievmentResponse() { Status = new BasicErrorResponse() { ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess", Success = true } });
                 }
                 else
@@ -124,18 +136,18 @@ namespace ElGato_API.Services
                         return (new BasicErrorResponse() { Success = true, }, new AchievmentResponse() { Status = new BasicErrorResponse() { ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess", Success = true } });
                     }
 
-                    userCount.Counter += 1;
+                    userCount.Counter += incValue;
                     userCount.LastCount = DateTime.Today;
-                    await _context.SaveChangesAsync();
+                    await dbContext.SaveChangesAsync();
 
                     if (achievment.Threshold == userCount.Counter) 
                     {
-                        achRes.Achievment.ExceededThreshold = 1;
+                        achRes.Achievment.ExceededThreshold = achievment.Threshold;
                         achRes.Achievment.AchievmentEarnedName = achievment.Name;
                         achRes.Achievment.AchievmentEarnedImage = achievment.Img;
                         achRes.Achievment.GenerativeText = achievment.GenerativeText;
 
-                        var user = await _context.Users.Include(u => u.Achievments).FirstOrDefaultAsync(u => u.Id == userId);
+                        var user = await dbContext.Users.Include(u => u.Achievments).FirstOrDefaultAsync(u => u.Id == userId);
                         if (user != null)
                         {
                             if (user.Achievments == null)
@@ -143,7 +155,7 @@ namespace ElGato_API.Services
                                 user.Achievments = new List<Achievment>();
                             }
                             user.Achievments.Add(achievment);
-                            await _context.SaveChangesAsync();
+                            await dbContext.SaveChangesAsync();
                         }
 
                         achRes.Status.Success = true;
@@ -162,5 +174,226 @@ namespace ElGato_API.Services
                 return (new BasicErrorResponse() { Success = false, ErrorMessage = ex.Message }, null);
             }
         }
+
+        public async Task<(BasicErrorResponse error, List<ChallengeVMO>? data)> GetActiveChallenges(string userId)
+        {
+            try
+            {
+                List<ChallengeVMO> vmo = new List<ChallengeVMO>();
+                var challs = await _context.Challanges.Where(a => a.EndDate > DateTime.Today).ToListAsync();
+                var participatedChallenges = await _context.AppUser.Include(c => c.ActiveChallanges).Where(a => a.Id == userId).FirstOrDefaultAsync();
+
+                if (participatedChallenges != null && participatedChallenges.ActiveChallanges != null)
+                {
+                    challs.RemoveAll(c => participatedChallenges.ActiveChallanges.Any(ac => ac.ChallengeId == c.Id));
+                }
+
+                foreach (var chall in challs)
+                {
+                    var newRec = new ChallengeVMO()
+                    {
+                        Id = chall.Id,
+                        Name = chall.Name,
+                        Badge = chall.Badge,
+                        Description = chall.Description,
+                        EndDate = chall.EndDate,
+                        GoalType = chall.GoalType,
+                        GoalValue = chall.GoalValue,
+                        MaxTimeMinutes = chall.MaxTimeMinutes,
+                        Type = chall.Type
+                    };
+
+                    if (chall.Creator != null)
+                    {
+                        newRec.Creator = new CreatorVMO()
+                        {
+                            Description = chall.Creator.Description,
+                            Name = chall.Creator.Name,
+                            Pfp = chall.Creator.Pfp,
+                        };
+                    }
+
+                    vmo.Add(newRec);
+                }
+
+                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess", Success = true }, vmo);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to get active challenges. Method: {nameof(GetActiveChallenges)}");
+                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"Error occured: {ex.Message}", Success = false }, null);
+            }
+        }
+
+        public async Task<(BasicErrorResponse error, List<ActiveChallengeVMO>? data)> GetUserActiveChallenges(string userId)
+        {
+            try
+            {
+                var vmo = new List<ActiveChallengeVMO>();
+                var user = await _context.AppUser.Include(a => a.ActiveChallanges).ThenInclude(ac => ac.Challenge).FirstOrDefaultAsync(a => a.Id == userId);
+                if (user != null && user.ActiveChallanges != null)
+                {
+                    foreach (var activeChallenge in user.ActiveChallanges)
+                    {
+                        if (activeChallenge.Challenge.EndDate < DateTime.UtcNow)
+                        {
+                            continue;
+                        }
+
+                        var challengeVMO = new ChallengeVMO
+                        {
+                            Id = activeChallenge.Challenge.Id,
+                            Name = activeChallenge.Challenge.Name,
+                            Description = activeChallenge.Challenge.Description,
+                            EndDate = activeChallenge.Challenge.EndDate,
+                            Badge = activeChallenge.Challenge.Badge,
+                            GoalType = activeChallenge.Challenge.GoalType,
+                            GoalValue = activeChallenge.Challenge.GoalValue,
+                            MaxTimeMinutes = activeChallenge.Challenge.MaxTimeMinutes,
+                            Type = activeChallenge.Challenge.Type
+                        };
+
+                        if (activeChallenge.Challenge.Creator != null)
+                        {
+                            var creator = new CreatorVMO()
+                            {
+                                Description = activeChallenge.Challenge.Creator.Description,
+                                Name = activeChallenge.Challenge.Creator.Name,
+                                Pfp = activeChallenge.Challenge.Creator.Pfp,
+                            };
+
+                            challengeVMO.Creator = creator;
+                        }
+
+                        vmo.Add(new ActiveChallengeVMO
+                        {
+                            ChallengeData = challengeVMO,
+                            CurrentProgess = activeChallenge.CurrentProgress,
+                            StartDate = activeChallenge.StartDate
+                        });
+                    }
+                }
+
+                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" }, vmo);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to get currently active challenges for user. UserId: {userId} Method: {nameof(GetActiveChallenges)}");
+                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"Error occured: {ex.Message}", Success = false }, null);
+            }
+        }
+
+        public async Task<BasicErrorResponse> CheckAndAddBadgeProgressForUser(string userId, BadgeIncDataVM model)
+        {
+            try
+            {
+                var user = await _context.AppUser.Include(a => a.UserBadges).Include(a => a.ActiveChallanges).ThenInclude(ac => ac.Challenge)
+                    .FirstOrDefaultAsync(a => a.Id == userId);
+
+                if (user == null || user.ActiveChallanges == null)
+                {
+                    return new BasicErrorResponse
+                    {
+                        ErrorCode = ErrorCodes.None,
+                        Success = true,
+                        ErrorMessage = "Success, active challenges not found."
+                    };
+                }
+
+                if (user.UserBadges == null)
+                {
+                    user.UserBadges = new List<UserBadges>();
+                }
+
+                var activeChallanges = user.ActiveChallanges.Where(ac => ac.Challenge.EndDate != null && ac.Challenge.EndDate > DateTime.UtcNow).ToList();
+
+                var completedChallenges = new List<ActiveChallange>();
+
+                foreach (var activeChallange in activeChallanges)
+                {
+                    switch (activeChallange.Challenge.GoalType)
+                    {
+                        case ChallengeGoalType.TotalDistanceKm:
+                            switch (activeChallange.Challenge.Type)
+                            {
+                                case ChallangeType.Running:
+                                    if (model.ActivityType == ActivityType.Running)
+                                        activeChallange.CurrentProgress += model.Distance;
+                                    break;
+                                case ChallangeType.Swimming:
+                                    if (model.ActivityType == ActivityType.Swimming)
+                                        activeChallange.CurrentProgress += model.Distance;
+                                    break;
+                                case ChallangeType.Walking:
+                                    if (model.ActivityType == ActivityType.Walking)
+                                        activeChallange.CurrentProgress += model.Distance;
+                                    break;
+                                case ChallangeType.Bike:
+                                    if (model.ActivityType == ActivityType.Bike || model.ActivityType == ActivityType.MountainBike)
+                                        activeChallange.CurrentProgress += model.Distance;
+                                    break;
+                                case ChallangeType.March:
+                                    if (model.ActivityType == ActivityType.Walking)
+                                        activeChallange.CurrentProgress += model.Distance;
+                                    break;
+                                case ChallangeType.None:
+                                    activeChallange.CurrentProgress += model.Distance;
+                                    break;
+                            }
+                            break;
+
+                        case ChallengeGoalType.TotalActivities:
+                            activeChallange.CurrentProgress += 1;
+                            break;
+
+                        case ChallengeGoalType.TotalCalories:
+                            activeChallange.CurrentProgress += model.CaloriesBurnt;
+                            break;
+
+                        case ChallengeGoalType.TotalElevation:
+                            activeChallange.CurrentProgress += model.Elevation;
+                            break;
+                    }
+
+                    if (activeChallange.CurrentProgress >= activeChallange.Challenge.GoalValue)
+                    {
+                        completedChallenges.Add(activeChallange);
+                        user.UserBadges.Add(new UserBadges
+                        {
+                            Challange = activeChallange.Challenge,
+                            ChallangeId = activeChallange.ChallengeId,
+                            CompletedTime = DateTime.UtcNow,
+                            User = user,
+                            UserId = userId
+                        });
+                    }
+                }
+
+                foreach (var challenge in completedChallenges)
+                {
+                    user.ActiveChallanges.Remove(challenge);
+                }
+
+                await _context.SaveChangesAsync();
+
+                return new BasicErrorResponse
+                {
+                    Success = true,
+                    ErrorCode = ErrorCodes.None,
+                    ErrorMessage = "Success"
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to check and add badge progress UserId: {userId} Method: {nameof(CheckAndAddBadgeProgressForUser)}");
+                return new BasicErrorResponse
+                {
+                    ErrorCode = ErrorCodes.Internal,
+                    ErrorMessage = $"Error occurred: {ex.Message}",
+                    Success = false
+                };
+            }
+        }
     }
+
 }
