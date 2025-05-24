@@ -92,6 +92,36 @@ namespace ElGato_API.Data
                 .HasForeignKey(ub => ub.ChallangeId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            modelBuilder.Entity<UserFollower>()
+                .HasKey(uf => new { uf.FollowerId, uf.FolloweeId });
+
+            modelBuilder.Entity<UserFollower>()
+               .HasOne(uf => uf.Follower)
+               .WithMany(u => u.Following)
+               .HasForeignKey(uf => uf.FollowerId)
+               .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<UserFollower>()
+                .HasOne(uf => uf.Followee)
+                .WithMany(u => u.Followers)
+                .HasForeignKey(uf => uf.FolloweeId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<UserBlock>()
+                .HasKey(ub => new { ub.BlockerId, ub.BlockedId });
+
+            modelBuilder.Entity<UserBlock>()
+                .HasOne(ub => ub.Blocker)
+                .WithMany(u => u.BlockedUsers)
+                .HasForeignKey(ub => ub.BlockerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<UserBlock>()
+                .HasOne(ub => ub.Blocked)
+                .WithMany(u => u.BlockedByUsers)
+                .HasForeignKey(ub => ub.BlockedId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             base.OnModelCreating(modelBuilder);
         }
 
@@ -109,5 +139,7 @@ namespace ElGato_API.Data
         public DbSet<Creator> Creators { get; set; }
         public DbSet<ActiveChallange> ActiveChallange { get; set; }
         public DbSet<UserBadges> UserBadges { get; set; }
+        public DbSet<UserFollower> UserFollower { get; set; }
+        public DbSet<UserBlock> UserBlock { get; set; }
     }
 }

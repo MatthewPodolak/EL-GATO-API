@@ -14,6 +14,12 @@ namespace ElGato_API.Models.User
         public List<AchievmentCounters> AchivmentCounter { get; set; } = new List<AchievmentCounters>();
         public List<ActiveChallange>? ActiveChallanges { get; set; } = new List<ActiveChallange>();
         public List<UserBadges>? UserBadges { get; set; } = new List<UserBadges>();
+        public int FollowersCount { get; set; } = 0;
+        public int FollowingCount { get; set; } = 0;
+        public List<UserFollower> Followers { get; set; } = new List<UserFollower>();
+        public List<UserFollower> Following { get; set; } = new List<UserFollower>();
+        public List<UserBlock> BlockedUsers { get; set; } = new List<UserBlock>();
+        public List<UserBlock> BlockedByUsers { get; set; } = new List<UserBlock>();
 
         public LayoutSettings? LayoutSettings { get; set; } = new LayoutSettings
         {

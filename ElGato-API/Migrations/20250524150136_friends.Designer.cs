@@ -4,6 +4,7 @@ using ElGato_API.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ElGato_API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250524150136_friends")]
+    partial class friends
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -530,21 +533,6 @@ namespace ElGato_API.Migrations
                     b.ToTable("UserBadges");
                 });
 
-            modelBuilder.Entity("ElGato_API.Models.User.UserBlock", b =>
-                {
-                    b.Property<string>("BlockerId")
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<string>("BlockedId")
-                        .HasColumnType("nvarchar(450)");
-
-                    b.HasKey("BlockerId", "BlockedId");
-
-                    b.HasIndex("BlockedId");
-
-                    b.ToTable("UserBlock");
-                });
-
             modelBuilder.Entity("ElGato_API.Models.User.UserFollower", b =>
                 {
                     b.Property<string>("FollowerId")
@@ -852,25 +840,6 @@ namespace ElGato_API.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("ElGato_API.Models.User.UserBlock", b =>
-                {
-                    b.HasOne("ElGato_API.Models.User.AppUser", "Blocked")
-                        .WithMany("BlockedByUsers")
-                        .HasForeignKey("BlockedId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("ElGato_API.Models.User.AppUser", "Blocker")
-                        .WithMany("BlockedUsers")
-                        .HasForeignKey("BlockerId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Blocked");
-
-                    b.Navigation("Blocker");
-                });
-
             modelBuilder.Entity("ElGato_API.Models.User.UserFollower", b =>
                 {
                     b.HasOne("ElGato_API.Models.User.AppUser", "Followee")
@@ -977,10 +946,6 @@ namespace ElGato_API.Migrations
                     b.Navigation("AchivmentCounter");
 
                     b.Navigation("ActiveChallanges");
-
-                    b.Navigation("BlockedByUsers");
-
-                    b.Navigation("BlockedUsers");
 
                     b.Navigation("CalorieInformation");
 
