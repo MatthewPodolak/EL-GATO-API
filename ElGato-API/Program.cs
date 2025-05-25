@@ -101,6 +101,7 @@ builder.Services.AddScoped<IMealService, MealService>();
 builder.Services.AddScoped<IAchievmentService, AchievmentService>();
 builder.Services.AddScoped<ITrainingService, TrainingService>();
 builder.Services.AddScoped<ICardioService, CardioService>();
+builder.Services.AddScoped<ICommunityService, CommunityService>();
 
 builder.Services.AddScoped<IScrapService, ScrapService>();
 builder.Services.AddScoped<IHelperService, HelperService>();
