@@ -134,6 +134,91 @@ namespace ElGato_API.Services
                 return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false };
             }
         }
+        public async Task<BasicErrorResponse> BlockUser(string userId, string userToBlockId)
+        {
+            try
+            {
+                var userToBlock = await _context.AppUser.FirstOrDefaultAsync( a => a.Id == userToBlockId);
+                var user = await _context.AppUser.FirstOrDefaultAsync(a=>a.Id == userId);
 
+                if(userToBlock == null || user == null)
+                {
+                    return new BasicErrorResponse()
+                    {
+                        ErrorCode = ErrorCodes.NotFound,
+                        ErrorMessage = "Couldn't find any user with given id.",
+                        Success = false
+                    };
+                }
+
+                var followed = await _context.UserFollower.FirstOrDefaultAsync(a => a.FollowerId == userId && a.FolloweeId == userToBlockId);
+                if (followed != null)
+                {
+                    userToBlock.FollowersCount = Math.Max(0, userToBlock.FollowersCount - 1);
+                    user.FollowingCount = Math.Max(0, user.FollowingCount - 1);
+
+                    _context.UserFollower.Remove(followed);
+                }
+
+                var alreadyBlocked = await _context.UserBlock.AnyAsync(b => b.BlockerId == userId && b.BlockedId == userToBlockId);
+                if (alreadyBlocked)
+                {
+                    return new BasicErrorResponse()
+                    {
+                        ErrorCode = ErrorCodes.AlreadyExists,
+                        ErrorMessage = "User is already blocked.",
+                        Success = false
+                    };
+                }
+
+                var newBlockRecord = new UserBlock()
+                {
+                    BlockerId = userId,
+                    BlockedId = userToBlockId,
+                };
+
+                _context.UserBlock.Add(newBlockRecord);
+                await _context.SaveChangesAsync();
+
+                return new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" };
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to block user. UserId: {userId} BlockingUserId: {userToBlockId} Method: {nameof(BlockUser)}");
+                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false };
+            }
+        }
+        public async Task<BasicErrorResponse> UnBlockUser(string userId, string userToUnblockId)
+        {
+            try
+            {
+                var userToUnblock = await _context.AppUser.FirstOrDefaultAsync(a => a.Id == userToUnblockId);
+                var user = await _context.AppUser.FirstOrDefaultAsync(a => a.Id == userId);
+
+                if (userToUnblock == null || user == null)
+                {
+                    return new BasicErrorResponse()
+                    {
+                        ErrorCode = ErrorCodes.NotFound,
+                        ErrorMessage = "Couldn't find any user with given id.",
+                        Success = false
+                    };
+                }
+
+                var record = await _context.UserBlock.FirstOrDefaultAsync(b => b.BlockerId == userId && b.BlockedId == userToUnblockId);
+                if(record != null)
+                {
+                    _context.UserBlock.Remove(record);
+                    await _context.SaveChangesAsync();
+                }
+
+                return new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" };
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to unlock user. UserId: {userId} BlockingUserId: {userToUnblockId} Method: {nameof(UnBlockUser)}");
+                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false };
+            }
+        }
     }
 }

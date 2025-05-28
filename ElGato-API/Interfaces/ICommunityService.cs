@@ -8,5 +8,7 @@ namespace ElGato_API.Interfaces
         Task<bool> CheckIfUserIsBlocking(string userId, string checkingUserId);
         Task<BasicErrorResponse> FollowUser(string userId, string userToFollowId);
         Task<BasicErrorResponse> UnFollowUser(string userId, string userToUnfollowId);
+        Task<BasicErrorResponse> BlockUser(string userId, string userToBlockId);
+        Task<BasicErrorResponse> UnBlockUser(string userId, string userToUnblockId);
     }
 }

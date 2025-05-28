@@ -138,5 +138,91 @@ namespace ElGato_API.Controllers
                 return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured {ex.Message}", Success = false });
             }
         }
+
+        [HttpPost]
+        [Authorize(Policy = "user")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> BlockUser(string userToBlockId)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(userToBlockId))
+                {
+                    return StatusCode(400, new BasicErrorResponse()
+                    {
+                        ErrorCode = ErrorCodes.ModelStateNotValid,
+                        ErrorMessage = "provide id of user to follow.",
+                        Success = false
+                    });
+                }
+
+                var userId = _jwtService.GetUserIdClaim();
+                if(userId == userToBlockId) { return StatusCode(403, new BasicErrorResponse() { ErrorCode = ErrorCodes.Forbidden, ErrorMessage = $"Can't block yourself.", Success = false }); }
+
+                var res = await _communityService.BlockUser(userId, userToBlockId);
+                if (!res.Success)
+                {
+                    return res.ErrorCode switch
+                    {
+                        ErrorCodes.NotFound => NotFound(res),
+                        ErrorCodes.Internal => StatusCode(500, res),
+                        _ => BadRequest(res)
+                    };
+                }
+
+                return Ok();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured {ex.Message}", Success = false });
+            }
+        }
+
+        [HttpPost]
+        [Authorize(Policy = "user")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> UnblockUser(string userToUnblockId)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(userToUnblockId))
+                {
+                    return StatusCode(400, new BasicErrorResponse()
+                    {
+                        ErrorCode = ErrorCodes.ModelStateNotValid,
+                        ErrorMessage = "provide id of user to follow.",
+                        Success = false
+                    });
+                }
+
+                var userId = _jwtService.GetUserIdClaim();
+                if (userId == userToUnblockId) { return StatusCode(403, new BasicErrorResponse() { ErrorCode = ErrorCodes.Forbidden, ErrorMessage = $"Can't unlblock yourself.", Success = false }); }
+
+                var res = await _communityService.UnBlockUser(userId, userToUnblockId);
+                if (!res.Success)
+                {
+                    return res.ErrorCode switch
+                    {
+                        ErrorCodes.NotFound => NotFound(res),
+                        ErrorCodes.Internal => StatusCode(500, res),
+                        _ => BadRequest(res)
+                    };
+                }
+
+                return Ok();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured {ex.Message}", Success = false });
+            }
+        }
     }
 }
