@@ -332,5 +332,33 @@ namespace ElGato_API.Services
                 return (new UserFollowersVMO(), new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false });
             }
         }
+
+        public async Task<(BlockListVMO data, BasicErrorResponse error)> GetUserBlockList(string userId)
+        {
+            try
+            {
+                var vmo = new BlockListVMO();
+                var user = await _context.AppUser.Include(u => u.BlockedUsers).ThenInclude(a=>a.Blocked).FirstOrDefaultAsync(a=>a.Id == userId);
+                if (user == null)
+                {
+                    _logger.LogWarning($"Trying to acess non existing user Method: {nameof(GetUserBlockList)}");
+                    return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, ErrorMessage = $"User with id: {userId} Not found.", Success = false });
+                }
+
+                vmo.BlockList = user.BlockedUsers.Select(a => new BlockList
+                {
+                    Name = a.Blocked.Name??"User",
+                    Pfp = a.Blocked.Pfp,       
+                    UserId = a.Blocked.Id,
+                }).ToList();
+
+                return (vmo, new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess" });
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to get user block list. UserId: {userId} Method: {nameof(GetUserBlockList)}");
+                return (new BlockListVMO(), new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false });
+            }
+        }
     }
 }
