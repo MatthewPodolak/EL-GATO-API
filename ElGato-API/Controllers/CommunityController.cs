@@ -1,5 +1,6 @@
 ﻿using ElGato_API.Data.JWT;
 using ElGato_API.Interfaces;
+using ElGato_API.VMO.Community;
 using ElGato_API.VMO.ErrorResponse;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -18,6 +19,73 @@ namespace ElGato_API.Controllers
             _jwtService = jwtService;
             _communityService = communityService;
         }
+
+        [HttpGet]
+        [Authorize(Policy = "user")]
+        [ProducesResponseType(typeof(UserFollowersVMO), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> GetUserFollowers(string userId, bool? onlyFollowed = false)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(userId))
+                {
+                    return StatusCode(400, new BasicErrorResponse()
+                    {
+                        ErrorCode = ErrorCodes.ModelStateNotValid,
+                        ErrorMessage = "Provide id of user.",
+                        Success = false
+                    });
+                }
+
+                var userExists = await _communityService.UserExists(userId);
+                if (!userExists)
+                {
+                    return NotFound(new BasicErrorResponse()
+                    {
+                        ErrorCode = ErrorCodes.NotFound,
+                        Success = false,
+                        ErrorMessage = $"User with id: {userId} does not exists."
+                    });
+                }
+
+                var askingUserId = _jwtService.GetUserIdClaim();
+                if(askingUserId != userId)
+                {
+                    var canAcess = await _communityService.CheckIfProfileIsAcessibleForUser(userId, askingUserId);
+                    if (!canAcess)
+                    {
+                        return StatusCode(403, new BasicErrorResponse()
+                        {
+                            ErrorCode = ErrorCodes.Forbidden,
+                            ErrorMessage = "Acess forbidden.",
+                            Success = false
+                        });
+                    }
+                }
+
+                var res = await _communityService.GetUserFollowerLists(userId, onlyFollowed??false);
+                if (!res.error.Success)
+                {
+                    return res.error.ErrorCode switch
+                    {
+                        ErrorCodes.NotFound => NotFound(res.error),
+                        ErrorCodes.Internal => StatusCode(500, res.error),
+                        _ => BadRequest(res.error)
+                    };
+                }
+
+                return Ok(res.data);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured {ex.Message}", Success = false });
+            }
+        }
+
 
         [HttpPost]
         [Authorize(Policy = "user")]

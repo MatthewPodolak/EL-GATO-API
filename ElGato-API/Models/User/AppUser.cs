@@ -16,6 +16,7 @@ namespace ElGato_API.Models.User
         public List<UserBadges>? UserBadges { get; set; } = new List<UserBadges>();
         public int FollowersCount { get; set; } = 0;
         public int FollowingCount { get; set; } = 0;
+        public bool IsProfilePrivate { get; set; } = false;
         public List<UserFollower> Followers { get; set; } = new List<UserFollower>();
         public List<UserFollower> Following { get; set; } = new List<UserFollower>();
         public List<UserBlock> BlockedUsers { get; set; } = new List<UserBlock>();

@@ -1,6 +1,7 @@
 ﻿using ElGato_API.Data;
 using ElGato_API.Interfaces;
 using ElGato_API.Models.User;
+using ElGato_API.VMO.Community;
 using ElGato_API.VMO.ErrorResponse;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,6 +17,20 @@ namespace ElGato_API.Services
             _context = context;
             _logger = logger;
             _contextFactory = contextFactory;
+        }
+
+        public async Task<bool> UserExists(string userId)
+        {
+            try
+            {
+                using var ctx = _contextFactory.CreateDbContext();
+                return await ctx.AppUser.AnyAsync(a => a.Id == userId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Checking if user exists FAILED. UserId: {userId} Method: {nameof(UserExists)}");
+                return true;
+            }
         }
 
         public async Task<bool> CheckIfUserIsBlockedBy(string userId, string checkingUserId)
@@ -46,6 +61,55 @@ namespace ElGato_API.Services
             }
         }
 
+        public async Task<bool> CheckIfProfileIsAcessibleForUser(string userAskingId, string userCheckingId)
+        {
+            try
+            {
+                var blockedByTask = Task.Run(async () =>
+                {
+                    return await CheckIfUserIsBlockedBy(userAskingId, userCheckingId);
+                });
+
+                var blockingTask = Task.Run(async () =>
+                {
+                    return await CheckIfUserIsBlocking(userAskingId, userCheckingId);
+                });
+
+                var isFriendTask = Task.Run(async () =>
+                {
+                    using var ctx = _contextFactory.CreateDbContext();
+                    return await _context.UserFollower.AnyAsync(a => a.FollowerId == userAskingId && a.FolloweeId == userCheckingId);
+                });
+
+                var isPrivateTask = Task.Run(async () =>
+                {
+                    using var ctx = _contextFactory.CreateDbContext();
+                    return await ctx.AppUser.Where(p => p.Id == userCheckingId).Select(p => (bool?)p.IsProfilePrivate).FirstOrDefaultAsync();
+                });
+
+                await Task.WhenAll(blockedByTask, blockingTask, isFriendTask, isPrivateTask);
+
+                if (isPrivateTask.Result == null)
+                {
+                    _logger.LogWarning($"User not found: {userCheckingId} Method: {nameof(CheckIfProfileIsAcessibleForUser)}");
+                    return false;
+                }
+
+                if (blockedByTask.Result || blockingTask.Result)
+                    return false;
+
+                if (isPrivateTask.Result == true && !isFriendTask.Result)
+                    return false;
+
+                return true;
+
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Checking if profile is acessible failed. UserId: {userAskingId} CheckingUserId: {userCheckingId} Method: {nameof(CheckIfProfileIsAcessibleForUser)}");
+                return false;
+            }
+        }
         public async Task<BasicErrorResponse> FollowUser(string userId, string userToFollowId)
         {
             try
@@ -218,6 +282,54 @@ namespace ElGato_API.Services
             {
                 _logger.LogError(ex, $"Failed while trying to unlock user. UserId: {userId} BlockingUserId: {userToUnblockId} Method: {nameof(UnBlockUser)}");
                 return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false };
+            }
+        }
+
+        public async Task<(UserFollowersVMO data, BasicErrorResponse error)> GetUserFollowerLists(string userId, bool onlyFollowed)
+        {
+            try
+            {
+                var vmo = new UserFollowersVMO();
+
+                var user = await _context.AppUser.Include(u => u.Followers).ThenInclude(f => f.Follower)
+                                                    .Include(u => u.Following).ThenInclude(f => f.Followee)
+                                                        .FirstOrDefaultAsync(u => u.Id == userId);
+
+                if (user == null)
+                {
+                    return (new UserFollowersVMO(), new BasicErrorResponse
+                    {
+                        ErrorCode = ErrorCodes.NotFound,
+                        ErrorMessage = "User not found",
+                        Success = false
+                    });
+                }
+
+                if (!onlyFollowed)
+                {
+                    vmo.Followers = user.Followers.Select(f => new UserFollowersList
+                    {
+                        UserId = f.Follower.Id,
+                        Name = f.Follower.Name??"User",
+                        Pfp = f.Follower.Pfp,
+                        IsFollowed = user.Following.Any(ff => ff.FolloweeId == f.FollowerId)
+                    }).ToList();
+                }
+
+                vmo.Followed = user.Following.Select(f => new UserFollowersList
+                {
+                    UserId = f.Followee.Id,
+                    Name = f.Followee.Name??"User",
+                    Pfp = f.Followee.Pfp,
+                    IsFollowed = true
+                }).ToList();
+
+                return (vmo, new BasicErrorResponse { Success = true, ErrorMessage = "Sucess", ErrorCode = ErrorCodes.NotFound });
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to get user follow lists. UserId: {userId} Method: {nameof(GetUserFollowerLists)}");
+                return (new UserFollowersVMO(), new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false });
             }
         }
     }
