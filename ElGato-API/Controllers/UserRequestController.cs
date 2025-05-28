@@ -60,7 +60,7 @@ namespace ElGato_API.Controllers
 
         [HttpPost]
         [Authorize(Policy = "user")]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> ReportMealRequest([FromBody] ReportMealRequestVM model)
@@ -88,7 +88,7 @@ namespace ElGato_API.Controllers
                     };
                 }
 
-                return Ok(res);
+                return Ok();
 
             }catch (Exception ex)
             {
@@ -99,7 +99,46 @@ namespace ElGato_API.Controllers
 
         [HttpPost]
         [Authorize(Policy = "user")]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> ReportUser([FromBody] ReportUserVM model)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return StatusCode(400, new BasicErrorResponse()
+                    {
+                        ErrorCode = ErrorCodes.ModelStateNotValid,
+                        Success = false,
+                        ErrorMessage = "Model state not valid."
+                    });
+                }
+
+                var userId = _jwtService.GetUserIdClaim();
+
+                var res = await _requestService.RequestReportUser(userId, model);
+                if (!res.Success)
+                {
+                    return res.ErrorCode switch
+                    {
+                        ErrorCodes.Internal => StatusCode(500, res),
+                        _ => BadRequest(res)
+                    };
+                }
+
+                return Ok();
+            }
+            catch(Exception ex)
+            {
+                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured {ex.Message}", Success = false });
+            }
+        }
+
+        [HttpPost]
+        [Authorize(Policy = "user")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> AddIngredientRequest([FromBody] AddProductRequestVM model)
@@ -128,13 +167,12 @@ namespace ElGato_API.Controllers
                     };
                 }
 
-                return Ok(res);
+                return Ok();
             }
             catch (Exception ex) 
             {
                 return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured {ex.Message}", Success = false });
             }
         }
-
     }
 }

@@ -141,5 +141,6 @@ namespace ElGato_API.Data
         public DbSet<UserBadges> UserBadges { get; set; }
         public DbSet<UserFollower> UserFollower { get; set; }
         public DbSet<UserBlock> UserBlock { get; set; }
+        public DbSet<Models.Requests.ReportedUsers> ReportedUsers { get; set; }
     }
 }

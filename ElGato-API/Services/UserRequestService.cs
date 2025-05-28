@@ -90,5 +90,29 @@ namespace ElGato_API.Services
                 return new BasicErrorResponse() { ErrorMessage = $"Request not succedull, internal error {ex.Message}", Success = false, ErrorCode = ErrorCodes.Internal };
             }
         }
+
+        public async Task<BasicErrorResponse> RequestReportUser(string userId, ReportUserVM model)
+        {
+            try
+            {
+                var newReport = new ReportedUsers()
+                {
+                    Case = model.ReportCase,
+                    CaseDescription = model.OtherDescription??string.Empty,
+                    ReportedUserId = model.ReportedUserId,
+                    ReportingUserId = userId,
+                };
+
+                _context.ReportedUsers.Add(newReport);
+                await _context.SaveChangesAsync();
+
+                return new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" };
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to report user. UserId: {userId} Model: {model} Method: {nameof(RequestReportUser)}");
+                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"Error occured: {ex.Message}", Success = false };
+            }
+        }
     }
 }
