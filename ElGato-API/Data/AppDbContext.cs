@@ -22,6 +22,10 @@ namespace ElGato_API.Data
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<AppUser>()
+                .HasIndex(u => u.Name)
+                .IsUnique(false);
+
+            modelBuilder.Entity<AppUser>()
              .HasOne(a => a.UserInformation)
              .WithOne(u => u.AppUser)
              .HasForeignKey<UserInformation>(ui => ui.UserId);

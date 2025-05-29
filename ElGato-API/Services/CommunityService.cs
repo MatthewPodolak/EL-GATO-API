@@ -360,5 +360,36 @@ namespace ElGato_API.Services
                 return (new BlockListVMO(), new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false });
             }
         }
+
+        public async Task<(UserSearchVMO data, BasicErrorResponse error)> SearchForUsers(string userId, string query, int limit = 10)
+        {
+            try
+            {
+                var vmo = new UserSearchVMO();
+
+                var blockedUserIds = await _context.UserBlock.Where(b => b.BlockerId == userId || b.BlockedId == userId)
+                    .Select(b => b.BlockerId == userId ? b.BlockedId : b.BlockerId).Distinct().ToListAsync();
+
+                blockedUserIds.Add(userId);
+
+                var users = await _context.AppUser
+                    .Where(u => !blockedUserIds.Contains(u.Id) && u.Name.ToLower().StartsWith(query)).OrderBy(u => u.Name).Take(limit)
+                    .Select(u => new UserSearch
+                    {
+                        UserId = u.Id,
+                        Name = u.Name??"User",
+                        Pfp = u.Pfp
+                    }).ToListAsync();
+
+                vmo.Users = users;
+
+                return (vmo, new BasicErrorResponse{ Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Success" });
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to perform user search. UserRequestingId: {userId} Query: {query} Method: {nameof(SearchForUsers)}");
+                return (new UserSearchVMO(), new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false });
+            }
+        }
     }
 }
