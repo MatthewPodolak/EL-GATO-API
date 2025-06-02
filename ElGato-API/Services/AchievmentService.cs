@@ -90,17 +90,17 @@ namespace ElGato_API.Services
                 var achievment = await dbContext.Achievment.FirstOrDefaultAsync(a => a.StringId == achievmentStringId);
                 if (achievment == null) { _logger.LogWarning($"User {userId} attempted to access non-existent achievement {achievmentStringId}"); return (new BasicErrorResponse() { Success = false, ErrorMessage = "Given achievments does not exists." }, null); }
 
-                var userCount = await dbContext.AchievmentCounters.FirstOrDefaultAsync(a => a.UserId == userId && a.AchievmentId == achievment.Id);
+                var userCount = await dbContext.AchievementCounters.FirstOrDefaultAsync(a => a.UserId == userId && a.AchievmentId == achievment.Id);
                 if (userCount == null)
                 {
-                    AchievmentCounters counter = new AchievmentCounters()
+                    AchievementCounter counter = new AchievementCounter()
                     {
                         Counter = incValue,
                         AchievmentId = achievment.Id,
                         UserId = userId,
                     };
 
-                    await dbContext.AchievmentCounters.AddAsync(counter);
+                    await dbContext.AchievementCounters.AddAsync(counter);
 
                     if (achievment.Threshold <= incValue)
                     {

@@ -1,6 +1,6 @@
 ﻿namespace ElGato_API.Models.User
 {
-    public class AchievmentCounters
+    public class AchievementCounter
     {
         public int Id { get; set; }
         public DateTime LastCount { get; set; }

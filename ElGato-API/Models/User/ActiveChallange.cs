@@ -11,5 +11,7 @@ namespace ElGato_API.Models.User
         public int ChallengeId { get; set; }
         public double CurrentProgress { get; set; }
         public DateTime StartDate { get; set; }
+        public string UserId { get; set; }
+        public AppUser User { get; set; }
     }
 }

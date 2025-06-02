@@ -4,6 +4,7 @@ using ElGato_API.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ElGato_API.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250531093811_userDesc")]
+    partial class userDesc
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -309,36 +312,6 @@ namespace ElGato_API.Migrations
                     b.ToTable("Muscles");
                 });
 
-            modelBuilder.Entity("ElGato_API.Models.User.AchievementCounter", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("AchievmentId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Counter")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("LastCount")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AchievmentId");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("AchievementCounters");
-                });
-
             modelBuilder.Entity("ElGato_API.Models.User.Achievment", b =>
                 {
                     b.Property<int>("Id")
@@ -382,6 +355,36 @@ namespace ElGato_API.Migrations
                     b.ToTable("Achievment");
                 });
 
+            modelBuilder.Entity("ElGato_API.Models.User.AchievmentCounters", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AchievmentId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Counter")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("LastCount")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AchievmentId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("AchievmentCounters");
+                });
+
             modelBuilder.Entity("ElGato_API.Models.User.ActiveChallange", b =>
                 {
                     b.Property<int>("Id")
@@ -389,6 +392,10 @@ namespace ElGato_API.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AppUserId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
 
                     b.Property<int>("ChallengeId")
                         .HasColumnType("int");
@@ -399,21 +406,11 @@ namespace ElGato_API.Migrations
                     b.Property<DateTime>("StartDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<string>("UserId1")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(450)");
-
                     b.HasKey("Id");
 
+                    b.HasIndex("AppUserId");
+
                     b.HasIndex("ChallengeId");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("UserId1");
 
                     b.ToTable("ActiveChallange");
                 });
@@ -828,7 +825,7 @@ namespace ElGato_API.Migrations
                     b.Navigation("Creator");
                 });
 
-            modelBuilder.Entity("ElGato_API.Models.User.AchievementCounter", b =>
+            modelBuilder.Entity("ElGato_API.Models.User.AchievmentCounters", b =>
                 {
                     b.HasOne("ElGato_API.Models.User.Achievment", "Achievment")
                         .WithMany()
@@ -849,27 +846,19 @@ namespace ElGato_API.Migrations
 
             modelBuilder.Entity("ElGato_API.Models.User.ActiveChallange", b =>
                 {
+                    b.HasOne("ElGato_API.Models.User.AppUser", null)
+                        .WithMany("ActiveChallanges")
+                        .HasForeignKey("AppUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.HasOne("ElGato_API.Models.Feed.Challange", "Challenge")
                         .WithMany()
                         .HasForeignKey("ChallengeId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("ElGato_API.Models.User.AppUser", null)
-                        .WithMany("ActiveChallanges")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("ElGato_API.Models.User.AppUser", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId1")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.Navigation("Challenge");
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("ElGato_API.Models.User.CalorieInformation", b =>

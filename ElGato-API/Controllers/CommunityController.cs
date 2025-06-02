@@ -61,6 +61,71 @@ namespace ElGato_API.Controllers
 
         [HttpGet]
         [Authorize(Policy = "user")]
+        [ProducesResponseType(typeof(UserProfileDataVMO), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> GetUserProfile(string? userId)
+        {
+            try
+            {
+                var askingUserId = _jwtService.GetUserIdClaim();
+
+                if(string.IsNullOrEmpty(userId))
+                {
+                    var res = await _communityService.GetUserProfileData(askingUserId, askingUserId);
+                    if (!res.error.Success)
+                    {
+                        return res.error.ErrorCode switch
+                        {
+                            ErrorCodes.Internal => StatusCode(500, res.error),
+                            ErrorCodes.NotFound => StatusCode(404, res.error),
+                            _ => BadRequest(res.error)
+                        };
+                    }
+
+                    return Ok(res.data);
+                }
+
+                bool canUserAcessFullData = true;
+
+                var isAcessible = await _communityService.CheckIfProfileIsAcessibleForUser(askingUserId, userId);
+                if (!isAcessible.Acessible)
+                {
+                    switch (isAcessible.UnacessilibityReason)
+                    {
+                        case UnacessilibityReason.Other:
+                            return StatusCode(403, new BasicErrorResponse() { ErrorCode = ErrorCodes.Forbidden, ErrorMessage = "Acess forbidden.", Success = false });
+                        case UnacessilibityReason.Blocked:
+                            return StatusCode(403, new BasicErrorResponse() { ErrorCode = ErrorCodes.Forbidden, ErrorMessage = "Acess forbidden.", Success = false });
+                        case UnacessilibityReason.Private:
+                            canUserAcessFullData = false;
+                            break;
+                    }
+                }
+
+                var response = await _communityService.GetUserProfileData(userId, askingUserId, canUserAcessFullData);
+                if (!response.error.Success)
+                {
+                    return response.error.ErrorCode switch
+                    {
+                        ErrorCodes.Internal => StatusCode(500, response.error),
+                        ErrorCodes.NotFound => StatusCode(404, response.error),
+                        _ => BadRequest(response.error)
+                    };
+                }
+
+                return Ok(response.data);
+            }
+            catch(Exception ex)
+            {
+                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured {ex.Message}", Success = false });
+            }
+        }
+
+        [HttpGet]
+        [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(UserFollowersVMO), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status403Forbidden)]
@@ -95,12 +160,12 @@ namespace ElGato_API.Controllers
                 if(askingUserId != userId)
                 {
                     var canAcess = await _communityService.CheckIfProfileIsAcessibleForUser(userId, askingUserId);
-                    if (!canAcess)
+                    if (!canAcess.Acessible)
                     {
                         return StatusCode(403, new BasicErrorResponse()
                         {
                             ErrorCode = ErrorCodes.Forbidden,
-                            ErrorMessage = "Acess forbidden.",
+                            ErrorMessage = $"Acess forbidden - {canAcess.UnacessilibityReason}",
                             Success = false
                         });
                     }

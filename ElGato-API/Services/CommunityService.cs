@@ -1,9 +1,18 @@
 ﻿using ElGato_API.Data;
 using ElGato_API.Interfaces;
+using ElGato_API.Models.Feed;
 using ElGato_API.Models.User;
+using ElGato_API.ModelsMongo.Cardio;
+using ElGato_API.ModelsMongo.History;
+using ElGato_API.ModelsMongo.Statistics;
+using ElGato_API.ModelsMongo.Training;
+using ElGato_API.VMO.Cardio;
 using ElGato_API.VMO.Community;
 using ElGato_API.VMO.ErrorResponse;
 using Microsoft.EntityFrameworkCore;
+using MongoDB.Driver;
+using System;
+using System.Collections.Generic;
 
 namespace ElGato_API.Services
 {
@@ -12,11 +21,25 @@ namespace ElGato_API.Services
         private readonly AppDbContext _context;
         private readonly ILogger<CommunityService> _logger;
         private readonly IDbContextFactory<AppDbContext> _contextFactory;
-        public CommunityService(AppDbContext context, ILogger<CommunityService> logger, IDbContextFactory<AppDbContext> contextFactory) 
+        private readonly IMongoCollection<DailyCardioDocument> _cardioDocument;
+        private readonly IMongoCollection<CardioDailyHistoryDocument> _cardioDailyHistoryDocument;
+        private readonly IMongoCollection<CardioHistoryDocument> _cardioHistoryDocument;
+        private readonly IMongoCollection<DailyTrainingDocument> _trainingCollection;
+        private readonly IMongoCollection<TrainingHistoryDocument> _trainingHistoryCollection;
+        private readonly IMongoCollection<UserStatisticsDocument> _userStatisticsDocument;
+        private readonly IHelperService _helperService;
+        public CommunityService(AppDbContext context, ILogger<CommunityService> logger, IDbContextFactory<AppDbContext> contextFactory, IMongoDatabase database, IHelperService helperService) 
         { 
             _context = context;
             _logger = logger;
             _contextFactory = contextFactory;
+            _cardioDocument = database.GetCollection<DailyCardioDocument>("DailyCardio");
+            _cardioDailyHistoryDocument = database.GetCollection<CardioDailyHistoryDocument>("CardioHistoryDaily");
+            _trainingCollection = database.GetCollection<DailyTrainingDocument>("DailyTraining");
+            _trainingHistoryCollection = database.GetCollection<TrainingHistoryDocument>("TrainingHistory");
+            _userStatisticsDocument = database.GetCollection<UserStatisticsDocument>("Statistics");
+            _cardioHistoryDocument = database.GetCollection<CardioHistoryDocument>("CardioHistory");
+            _helperService = helperService;
         }
 
         public async Task<bool> UserExists(string userId)
@@ -61,7 +84,21 @@ namespace ElGato_API.Services
             }
         }
 
-        public async Task<bool> CheckIfProfileIsAcessibleForUser(string userAskingId, string userCheckingId)
+        public async Task<bool> CheckIfUserFollowUser(string userId, string checkingUserId)
+        {
+            try
+            {
+                using var context = _contextFactory.CreateDbContext();
+                return await context.UserFollower.AnyAsync(f => f.FolloweeId == userId && f.FollowerId == checkingUserId);
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to check if user follow user. UserId: {userId} Checking: {checkingUserId} Method: {nameof(CheckIfUserFollowUser)}");
+                return false;
+            }
+        }
+
+        public async Task<AcessibleVMO> CheckIfProfileIsAcessibleForUser(string userAskingId, string userCheckingId)
         {
             try
             {
@@ -92,22 +129,22 @@ namespace ElGato_API.Services
                 if (isPrivateTask.Result == null)
                 {
                     _logger.LogWarning($"User not found: {userCheckingId} Method: {nameof(CheckIfProfileIsAcessibleForUser)}");
-                    return false;
+                    return new AcessibleVMO() { Acessible = false, UnacessilibityReason = UnacessilibityReason.Other };
                 }
 
                 if (blockedByTask.Result || blockingTask.Result)
-                    return false;
+                    return new AcessibleVMO() { Acessible = false, UnacessilibityReason = UnacessilibityReason.Blocked };
 
                 if (isPrivateTask.Result == true && !isFriendTask.Result)
-                    return false;
+                    return new AcessibleVMO() { Acessible = false, UnacessilibityReason = UnacessilibityReason.Private };
 
-                return true;
+                return new AcessibleVMO() { Acessible = true };
 
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Checking if profile is acessible failed. UserId: {userAskingId} CheckingUserId: {userCheckingId} Method: {nameof(CheckIfProfileIsAcessibleForUser)}");
-                return false;
+                return new AcessibleVMO() { Acessible = false, UnacessilibityReason = UnacessilibityReason.Other };
             }
         }
         public async Task<BasicErrorResponse> FollowUser(string userId, string userToFollowId)
@@ -391,5 +428,501 @@ namespace ElGato_API.Services
                 return (new UserSearchVMO(), new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false });
             }
         }
+
+        public async Task<(UserProfileDataVMO data, BasicErrorResponse error)> GetUserProfileData(string userId, string askingUserId, bool full = true)
+        {
+            try
+            {
+                var vmo = new UserProfileDataVMO();
+
+                bool isFollowed = false;
+                if(userId != askingUserId)
+                {
+                    isFollowed = await CheckIfUserFollowUser(askingUserId, userId);
+                }
+
+                var generalUserProfileData = await GetGeneralProfileData(userId);
+                if (!generalUserProfileData.error.Success)
+                {
+                    return (vmo, generalUserProfileData.error);
+                }
+
+                vmo.GeneralProfileData = generalUserProfileData.data;
+                vmo.GeneralProfileData.IsFollowed = isFollowed;
+                if (!full)
+                {
+                    return (vmo, new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess" });
+                }
+
+
+                var earnedBadgesTask = GetUserEarnedBadges(userId);
+                var recentCardioTask = GetUserRecentCardioActivity(userId);
+                var recentLiftsTask = GetUserRecentLiftActivities(userId);
+                var bestLiftsTask = GetUserBestLifts(userId);
+                var statisticsTask = GetUserStatistics(userId);
+                var cardioStatsTask = GetCardioTrainingStatistics(userId);
+
+                await Task.WhenAll(earnedBadgesTask, recentCardioTask, recentLiftsTask, bestLiftsTask, statisticsTask, cardioStatsTask);
+
+                if (!earnedBadgesTask.Result.error.Success) return (vmo, earnedBadgesTask.Result.error);
+                if (!recentCardioTask.Result.error.Success) return (vmo, recentCardioTask.Result.error);
+                if (!recentLiftsTask.Result.error.Success) return (vmo, recentLiftsTask.Result.error);
+                if (!bestLiftsTask.Result.error.Success) return (vmo, bestLiftsTask.Result.error);
+                if (!statisticsTask.Result.error.Success) return (vmo, statisticsTask.Result.error);
+                if (!cardioStatsTask.Result.error.Success) return (vmo, cardioStatsTask.Result.error);
+
+                vmo.PrivateProfileInformation = new PrivateProfileInformation
+                {
+                    EarnedBadges = earnedBadgesTask.Result.data,
+                    RecentCardioActivities = recentCardioTask.Result.data,
+                    RecentLiftActivities = recentLiftsTask.Result.data,
+                    BestLifts = bestLiftsTask.Result.data,
+                    Statistics = statisticsTask.Result.data,
+                    CardioStatistics = cardioStatsTask.Result.data
+                };
+
+                return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess"});
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to get user profile data. UserId: {userId} Method: {nameof(GetUserProfileData)}");
+                return (new UserProfileDataVMO(), new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false });
+            }
+        }
+
+        private async Task<(GeneralProfileData data, BasicErrorResponse error)> GetGeneralProfileData(string userId)
+        {
+            try
+            {
+                var vmo = new GeneralProfileData();
+                using var context = _contextFactory.CreateDbContext();
+                
+                var user = await context.AppUser.FirstOrDefaultAsync(a=>a.Id == userId);
+                if(user == null)
+                {
+                    return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, ErrorMessage = "User with given id not found.", Success = false});
+                }
+
+                vmo.Pfp = user.Pfp;
+                vmo.Name = user.Name ?? "User";
+                vmo.Desc = user.Desc ?? string.Empty;
+                vmo.FollowedCounter = user.FollowingCount;
+                vmo.FollowersCounter = user.FollowersCount;
+                vmo.IsPrivate = user.IsProfilePrivate;
+
+                return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = $"Sucess"});
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to get general profile data for user. UserId: {userId} Method: {nameof(GetGeneralProfileData)}");
+                return (new GeneralProfileData(), new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false });
+            }
+        }
+
+        private async Task<(List<EarnedBadges> data, BasicErrorResponse error)> GetUserEarnedBadges(string userId)
+        {
+            try
+            {
+                var vmo = new List<EarnedBadges>();
+                using var context = _contextFactory.CreateDbContext();
+
+                var user = await context.AppUser.Include(a => a.UserBadges).ThenInclude(ub => ub.Challange).Include(a => a.Achievments).FirstOrDefaultAsync(a => a.Id == userId);
+                if (user == null)
+                {
+                    return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, ErrorMessage = "User with given id not found.", Success = false });
+                }
+
+                if (user.UserBadges != null)
+                {
+                    var challengeProgress = await context.ActiveChallange.Where(ac => ac.UserId == userId).ToDictionaryAsync(ac => ac.ChallengeId, ac => ac.CurrentProgress);
+
+                    foreach (var badge in user.UserBadges)
+                    {
+                        challengeProgress.TryGetValue(badge.ChallangeId, out var currentProgress);
+
+                        vmo.Add(new EarnedBadges
+                        {
+                            BadgeType = BadgeType.Challange,
+                            Name = badge.Challange.Name,
+                            Img = badge.Challange.Badge,
+                            Threshold = badge.Challange.GoalValue,
+                            CurrentTotalProgress = currentProgress,
+                            ChallengeGoalType = badge.Challange.GoalType,
+                        });
+                    }
+                }
+
+                if (user.Achievments != null)
+                {
+                    var achievementIds = user.Achievments.Select(a => a.Id).ToList();
+                    var achievementCounters = await context.AchievementCounters.Where(ac => ac.UserId == userId && achievementIds.Contains(ac.AchievmentId)).ToDictionaryAsync(ac => ac.AchievmentId, ac => ac.Counter);
+
+                    foreach (var ach in user.Achievments)
+                    {
+                        achievementCounters.TryGetValue(ach.Id, out var counter);
+
+                        vmo.Add(new EarnedBadges
+                        {
+                            BadgeType = BadgeType.Achievment,
+                            Name = ach.Name,
+                            Img = ach.Img,
+                            Threshold = ach.Threshold,
+                            CurrentTotalProgress = counter,
+                            ChallengeGoalType = ChallengeGoalType.None,
+                        });
+                    }
+                }
+
+                return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" });
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to get user earned badges and achievments data. UserId: {userId} Method: {nameof(GetUserEarnedBadges)}");
+                return (new List<EarnedBadges>(), new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, Success = false, ErrorMessage = $"An error occured: {ex.Message}"});
+            }
+        }
+
+        private async Task<(List<RecentCardioActivity> data, BasicErrorResponse error)> GetUserRecentCardioActivity(string userId, int limit = 15)
+        {
+            try
+            {
+                var vmo = new List<RecentCardioActivity>();
+                using var context = _contextFactory.CreateDbContext();
+
+                var userCardioDoc = await _cardioDocument.Find(a => a.UserId == userId).FirstOrDefaultAsync();
+                if (userCardioDoc != null)
+                {
+                    var allSessions = userCardioDoc.Trainings.OrderByDescending(t => t.Date).SelectMany(t => t.Exercises.Select(e => new { PlanDate = t.Date, Exercise = e }))
+                                                             .OrderByDescending(e => e.PlanDate).ThenByDescending(e => e.Exercise.PublicId).Where(e => e.Exercise.ExerciseVisilibity == ExerciseVisilibity.Public);
+
+                    foreach (var item in allSessions)
+                    {
+                        if (limit > 0)
+                        {
+                            var session = item.Exercise;
+                            vmo.Add(new RecentCardioActivity
+                            {
+                                Date = item.PlanDate,
+                                Name = session.Name,
+                                Desc = session.Desc,
+                                Duration = session.Duration,
+                                DistanceMeters = session.DistanceMeters,
+                                SpeedKmH = session.SpeedKmH,
+                                AvgHeartRate = session.AvgHeartRate,
+                                CaloriesBurnt = session.CaloriesBurnt,
+                                FeelingPercentage = session.FeelingPercentage,
+                                ExerciseFeeling = session.ExerciseFeeling,
+                                Route = session.Route,
+                                ActivityType = session.ActivityType,
+                            });
+
+                            limit--;
+                        }
+                    }
+                }
+
+                if (limit > 0)
+                {
+                    var userCardioHistoryDoc = await _cardioDailyHistoryDocument.Find(a => a.UserId == userId).FirstOrDefaultAsync();
+                    if (userCardioHistoryDoc != null)
+                    {
+                        var historySessions = userCardioHistoryDoc.Trainings.OrderByDescending(t => t.Date).Where(t => t.CardioTraining.ExerciseVisilibity == ExerciseVisilibity.Public)
+                            .Select(t => new { PlanDate = t.Date, Exercise = t.CardioTraining }).OrderByDescending(e => e.PlanDate).ThenByDescending(e => e.Exercise.PublicId).Take(limit);
+
+                        foreach (var item in historySessions)
+                        {
+                            vmo.Add(new RecentCardioActivity
+                            {
+                                Date = item.PlanDate,
+                                Name = item.Exercise.Name,
+                                Desc = item.Exercise.Desc,
+                                Duration = item.Exercise.Duration,
+                                DistanceMeters = item.Exercise.DistanceMeters,
+                                SpeedKmH = item.Exercise.SpeedKmH,
+                                AvgHeartRate = item.Exercise.AvgHeartRate,
+                                CaloriesBurnt = item.Exercise.CaloriesBurnt,
+                                FeelingPercentage = item.Exercise.FeelingPercentage,
+                                ExerciseFeeling = item.Exercise.ExerciseFeeling,
+                                Route = item.Exercise.Route,
+                                ActivityType = item.Exercise.ActivityType,
+                            });
+                        }
+
+                    }
+                }
+
+                return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" });
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to get recent cardio activity for user. UserId: {userId} Method: {nameof(GetUserRecentCardioActivity)}");
+                return (new List<RecentCardioActivity>(), new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false});
+            }
+        }
+
+        private async Task<(List<LiftData> data, BasicErrorResponse error)> GetUserRecentLiftActivities(string userId, int limit = 10)
+        {
+            try
+            {
+                var vmo = new List<LiftData>();
+
+                var userTrainingDoc = await _trainingCollection.Find(a=>a.UserId == userId).FirstOrDefaultAsync();
+                if(userTrainingDoc != null)
+                {
+                    var allSessions = userTrainingDoc.Trainings.OrderByDescending(t => t.Date).SelectMany(t => t.Exercises.Select(e => new { PlanDate = t.Date, Exercise = e }))
+                                                             .OrderByDescending(e => e.PlanDate).ThenByDescending(e => e.Exercise.PublicId);
+
+                    foreach (var item in allSessions)
+                    {
+                        if (limit > 0)
+                        {
+                            var exerciseRecord = new LiftData()
+                            {
+                                Date = item.PlanDate,
+                                Name = item.Exercise.Name,
+                                Series = item.Exercise.Series,
+                            };
+                            vmo.Add(exerciseRecord);
+
+                            limit--;
+                        }
+                    }
+                }
+
+                if(limit > 0)
+                {
+                    var userTrainingHistoryDoc = await _trainingHistoryCollection.Find(a=>a.UserId ==userId).FirstOrDefaultAsync();
+                    if(userTrainingHistoryDoc != null)
+                    {
+                        var historySessions = userTrainingHistoryDoc.DailyTrainingPlans.OrderByDescending(t => t.Date).SelectMany(t => t.Exercises.Select(e => new { PlanDate = t.Date, Exercise = e })).OrderByDescending(e => e.PlanDate).ThenByDescending(e => e.Exercise.PublicId).Take(limit);
+
+                        foreach (var ex in historySessions)
+                        {
+                            var exerciseRecord = new LiftData()
+                            {
+                                Date = ex.PlanDate,
+                                Name = ex.Exercise.Name,
+                                Series = ex.Exercise.Series,
+                            };
+
+                            vmo.Add(exerciseRecord);
+                        }
+                    }
+                }
+
+                return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" });
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to get user recent lift activities. UserId: {userId} Method: {nameof(GetUserRecentLiftActivities)}");
+                return (new List<LiftData>(), new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, Success = false, ErrorMessage = $"An error occured: {ex.Message}" });
+            }
+        }
+
+        private async Task<(List<BestLiftData> data, BasicErrorResponse error)> GetUserBestLifts(string userId)
+        {
+            try
+            {
+                var bestLifts = new Dictionary<string, BestLiftData>();
+
+                var userTrainingDoc = await _trainingCollection.Find(a => a.UserId == userId).FirstOrDefaultAsync();
+                var userTrainingHistoryDoc = await _trainingHistoryCollection.Find(a => a.UserId == userId).FirstOrDefaultAsync();
+
+                var allExercises = new List<DailyExercise>();
+
+                if (userTrainingDoc != null)
+                {
+                    allExercises.AddRange(userTrainingDoc.Trainings.SelectMany(t => t.Exercises));
+                }
+
+                if (userTrainingHistoryDoc != null)
+                {
+                    allExercises.AddRange(userTrainingHistoryDoc.DailyTrainingPlans.SelectMany(t => t.Exercises));
+                }
+
+                foreach (var exercise in allExercises)
+                {
+                    if (exercise.Series == null || exercise.Series.Count == 0)
+                        continue;
+
+                    foreach (var series in exercise.Series)
+                    {
+                        var score = series.WeightKg * (1 + series.Repetitions / 30.0);
+
+                        if (!bestLifts.ContainsKey(exercise.Name))
+                        {
+                            bestLifts[exercise.Name] = new BestLiftData
+                            {
+                                Name = exercise.Name,
+                                WeightKg = series.WeightKg,
+                                Repetitions = series.Repetitions
+                            };
+                        }
+                        else
+                        {
+                            var existing = bestLifts[exercise.Name];
+                            var existingScore = existing.WeightKg * existing.Repetitions;
+
+                            if (score > existingScore)
+                            {
+                                bestLifts[exercise.Name] = new BestLiftData
+                                {
+                                    Name = exercise.Name,
+                                    WeightKg = series.WeightKg,
+                                    Repetitions = series.Repetitions
+                                };
+                            }
+                        }
+                    }
+                }
+
+                return (bestLifts.Values.ToList(), new BasicErrorResponse {  ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" });
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to get user best lifts data. UserId: {userId} Method: {nameof(GetUserBestLifts)}");
+                return (new List<BestLiftData>(), new BasicErrorResponse() { ErrorMessage = $"An error occured: {ex.Message}", Success = false });
+            }
+        }
+
+        private async Task<(Statistics data, BasicErrorResponse error)> GetUserStatistics(string userId)
+        {
+            try
+            {
+                var vmo = new Statistics();
+
+                var userStatisticsCollection = await _userStatisticsDocument.Find(a=>a.UserId == userId).FirstOrDefaultAsync();
+                if(userStatisticsCollection == null)
+                {
+                    _logger.LogWarning($"User statistics document not found. Creating. UserId: {userId}");
+                    var newDoc = await _helperService.CreateMissingDoc(userId, _userStatisticsDocument);
+                    if (newDoc == null)
+                    {
+                        _logger.LogCritical($"Unable to create new statistics document for user. UserId: {userId} Method: {nameof(GetUserStatistics)}");
+                        return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, ErrorMessage = "Couldnt find statistics for user.", Success = false });
+                    }
+
+                    userStatisticsCollection = newDoc;
+                }
+
+                var now = DateTime.UtcNow;
+                var weekStart = now.AddDays(-7);
+                var yearStart = new DateTime(now.Year, 1, 1);
+
+                foreach (var group in userStatisticsCollection.UserStatisticGroups)
+                {
+                    foreach (var record in group.Records)
+                    {
+                        if (record.Date >= weekStart)
+                            AddToPeriod(vmo.Weekly, group.Type, record);
+
+                        if (record.Date >= yearStart)
+                            AddToPeriod(vmo.YearToDay, group.Type, record);
+                    }
+                }
+
+                vmo.AllTime.TotalDistanceKm = userStatisticsCollection.TotalDistanceCounter;
+                vmo.AllTime.Steps = userStatisticsCollection.TotalStepsCounter;
+                vmo.AllTime.CaloriesBurnt = (int)userStatisticsCollection.TotalCaloriesCounter;
+                vmo.AllTime.ActivitiesCount = userStatisticsCollection.TotalSessionsCounter;
+                vmo.AllTime.TimeSpentOnActivites = userStatisticsCollection.TotalTimeSpend;
+                vmo.AllTime.TotalDistanceKm = userStatisticsCollection.TotalDistanceCounter;
+                vmo.AllTime.WeightKg = userStatisticsCollection.TotalWeightLiftedCounter;
+
+                return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" });
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to get user statistics. UserId: {userId} Method: {nameof(GetUserStatistics)}");
+                return (new Statistics(), new BasicErrorResponse() { Success = false, ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}" });
+            }
+        }
+
+        private static void AddToPeriod(PeriodStats stats, StatisticType type, UserStatisticRecord record)
+        {
+            switch (type)
+            {
+                case StatisticType.CaloriesBurnt:
+                    stats.CaloriesBurnt += (int)record.Value;
+                    break;
+                case StatisticType.WeightLifted:
+                    stats.WeightKg += record.Value;
+                    break;
+                case StatisticType.StepsTaken:
+                    stats.Steps += (int)record.Value;
+                    break;
+                case StatisticType.ActvSessionsCount:
+                    stats.ActivitiesCount += (int)record.Value;
+                    break;
+                case StatisticType.TimeSpend:
+                    stats.TimeSpentOnActivites += record.TimeValue;
+                    break;
+                case StatisticType.TotalDistance:
+                    stats.TotalDistanceKm += record.Value;
+                    break;
+            }
+        }
+
+        private async Task<(CardioTrainingStatistics data, BasicErrorResponse error)> GetCardioTrainingStatistics(string userId)
+        {
+            try
+            {
+                var vmo = new CardioTrainingStatistics();
+
+                var cardioHistory = await _cardioHistoryDocument.Find(ch => ch.UserId == userId).FirstOrDefaultAsync();
+                var historyData = new List<(ActivityType ActivityType, TimeSpan Duration, double DistanceMeters, int CaloriesBurnt)>();
+
+                if (cardioHistory?.Exercises != null)
+                {
+                    historyData = cardioHistory.Exercises
+                        .SelectMany(e => e.ExercisesData.Select(d => (
+                            ActivityType: e.ActivityType,
+                            Duration: d.Duration,
+                            DistanceMeters: d.DistanceMeters,
+                            CaloriesBurnt: d.CaloriesBurnt
+                        )))
+                        .ToList();
+                }
+
+                var cardioPlan = await _cardioDocument.Find(ch => ch.UserId == userId).FirstOrDefaultAsync();
+                var trainingData = new List<(ActivityType ActivityType, TimeSpan Duration, double DistanceMeters, int CaloriesBurnt)>();
+
+                if (cardioPlan?.Trainings != null)
+                {
+                    trainingData = cardioPlan.Trainings
+                        .SelectMany(day => day.Exercises.Select(e => (
+                            ActivityType: e.ActivityType,
+                            Duration: e.Duration,
+                            DistanceMeters: e.DistanceMeters,
+                            CaloriesBurnt: e.CaloriesBurnt
+                        )))
+                        .ToList();
+                }
+
+                var allData = historyData.Concat(trainingData);
+
+                var groupedStats = allData
+                    .GroupBy(d => d.ActivityType)
+                    .Select(group => new CardioTrainingStatisticsSpec
+                    {
+                        ActivityType = group.Key,
+                        TotalActivities = group.Count(),
+                        TotalDistanceKm = group.Sum(x => x.DistanceMeters) / 1000.0,
+                        TotalCaloriesBurnt = group.Sum(x => x.CaloriesBurnt),
+                        TotalTimeSpent = TimeSpan.FromSeconds(group.Sum(x => x.Duration.TotalSeconds))
+                    })
+                    .ToList();
+
+                vmo.Activities = groupedStats;
+
+                return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess", Success = true});
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to get user statistics for spec cardio. UserId: {userId} Method: {nameof(GetCardioTrainingStatistics)}");
+                return (new CardioTrainingStatistics(), new BasicErrorResponse() { Success = false, ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}" });
+            }
+        }
+
     }
 }

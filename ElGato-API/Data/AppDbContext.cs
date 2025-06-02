@@ -40,12 +40,12 @@ namespace ElGato_API.Data
                 .WithMany(a => a.Users)
                 .UsingEntity(j => j.ToTable("UserAchievements"));
 
-            modelBuilder.Entity<AchievmentCounters>()
+            modelBuilder.Entity<AchievementCounter>()
                 .HasOne(ac => ac.User)
                 .WithMany(u => u.AchivmentCounter)
                 .HasForeignKey(ac => ac.UserId);
 
-            modelBuilder.Entity<AchievmentCounters>()
+            modelBuilder.Entity<AchievementCounter>()
                 .HasOne(ac => ac.Achievment)
                 .WithMany()
                 .HasForeignKey(ac => ac.AchievmentId);
@@ -74,7 +74,8 @@ namespace ElGato_API.Data
             modelBuilder.Entity<AppUser>()
                 .HasMany(u => u.ActiveChallanges)
                 .WithOne()
-                .HasForeignKey("AppUserId")
+                .HasForeignKey("UserId")
+                .OnDelete(DeleteBehavior.Restrict)
                 .IsRequired();
 
             modelBuilder.Entity<ActiveChallange>()
@@ -136,7 +137,7 @@ namespace ElGato_API.Data
         public DbSet<AddProductRequest> AddProductRequest { get; set; }
         public DbSet<ReportedMeals> ReportedMeals { get; set; }
         public DbSet<Achievment> Achievment { get; set; }
-        public DbSet<AchievmentCounters> AchievmentCounters { get; set; }
+        public DbSet<AchievementCounter> AchievementCounters { get; set; }
         public DbSet<Exercises> Exercises { get; set; }
         public DbSet<Muscle> Muscles { get; set; }
         public DbSet<Challange> Challanges { get; set; }

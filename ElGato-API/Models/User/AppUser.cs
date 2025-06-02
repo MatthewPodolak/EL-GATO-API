@@ -6,12 +6,13 @@ namespace ElGato_API.Models.User
     public class AppUser : IdentityUser
     {
         public string? Name { get; set; }
+        public string? Desc { get; set; }
         public bool Metric { get; set; } = true;
         public string Pfp { get; set; } = "/pfp-images/e2f56642-a493-4c6d-924b-d3072714646a.png";
         public UserInformation? UserInformation { get; set; }
         public CalorieInformation? CalorieInformation { get; set; }
         public List<Achievment>? Achievments { get; set; } = new List<Achievment>();
-        public List<AchievmentCounters> AchivmentCounter { get; set; } = new List<AchievmentCounters>();
+        public List<AchievementCounter> AchivmentCounter { get; set; } = new List<AchievementCounter>();
         public List<ActiveChallange>? ActiveChallanges { get; set; } = new List<ActiveChallange>();
         public List<UserBadges>? UserBadges { get; set; } = new List<UserBadges>();
         public int FollowersCount { get; set; } = 0;
