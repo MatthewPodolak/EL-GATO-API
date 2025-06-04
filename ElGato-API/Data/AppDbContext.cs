@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using System.Collections.Generic;
 using System.Reflection.Emit;
 using System.Text.Json;
+using UserFollowerRequest = ElGato_API.Models.User.UserFollowerRequest;
 
 namespace ElGato_API.Data
 {
@@ -127,6 +128,26 @@ namespace ElGato_API.Data
                 .HasForeignKey(ub => ub.BlockedId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            modelBuilder.Entity<UserFollowerRequest>()
+                .HasKey(r => r.Id);
+
+            modelBuilder.Entity<UserFollowerRequest>()
+                .HasIndex(r => new { r.RequesterId, r.TargetId })
+                .IsUnique();
+
+            modelBuilder.Entity<UserFollowerRequest>()
+                .HasOne(r => r.Requester)
+                .WithMany(u => u.SentFollowRequests)
+                .HasForeignKey(r => r.RequesterId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<UserFollowerRequest>()
+                .HasOne(r => r.Target)
+                .WithMany(u => u.ReceivedFollowRequests)
+                .HasForeignKey(r => r.TargetId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+
             base.OnModelCreating(modelBuilder);
         }
 
@@ -147,5 +168,6 @@ namespace ElGato_API.Data
         public DbSet<UserFollower> UserFollower { get; set; }
         public DbSet<UserBlock> UserBlock { get; set; }
         public DbSet<Models.Requests.ReportedUsers> ReportedUsers { get; set; }
+        public DbSet<UserFollowerRequest> UserFollowerRequest { get; set; }
     }
 }

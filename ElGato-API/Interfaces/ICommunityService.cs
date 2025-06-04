@@ -1,4 +1,5 @@
-﻿using ElGato_API.VMO.Community;
+﻿using ElGato_API.VM.Community;
+using ElGato_API.VMO.Community;
 using ElGato_API.VMO.ErrorResponse;
 
 namespace ElGato_API.Interfaces
@@ -10,13 +11,16 @@ namespace ElGato_API.Interfaces
         Task<bool> CheckIfUserIsBlocking(string userId, string checkingUserId);
         Task<bool> CheckIfUserFollowUser(string userId, string checkingUserId);
         Task<AcessibleVMO> CheckIfProfileIsAcessibleForUser(string userAskingId, string userCheckingId);
+        Task<BasicErrorResponse> RequestFollow(string userAskingId, string userTargetId);
         Task<BasicErrorResponse> FollowUser(string userId, string userToFollowId);
         Task<BasicErrorResponse> UnFollowUser(string userId, string userToUnfollowId);
         Task<BasicErrorResponse> BlockUser(string userId, string userToBlockId);
         Task<BasicErrorResponse> UnBlockUser(string userId, string userToUnblockId);
+        Task<BasicErrorResponse> RespondToFollowRequest(string userId, RespondToFollowVM model);
         Task<(UserFollowersVMO data, BasicErrorResponse error)> GetUserFollowerLists(string userId, bool onlyFollowed);
         Task<(BlockListVMO data, BasicErrorResponse error)> GetUserBlockList(string userId);
         Task<(UserSearchVMO data, BasicErrorResponse error)> SearchForUsers(string userId, string query, int limit = 10);
         Task<(UserProfileDataVMO data, BasicErrorResponse error)> GetUserProfileData(string userId, string askingUserId, bool full = true);
+        Task<(FollowersRequestVMO data, BasicErrorResponse erro)> GetFollowersRequests(string userId);
     }
 }

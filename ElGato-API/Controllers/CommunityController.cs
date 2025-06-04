@@ -1,9 +1,11 @@
 ﻿using ElGato_API.Data.JWT;
 using ElGato_API.Interfaces;
+using ElGato_API.VM.Community;
 using ElGato_API.VMO.Community;
 using ElGato_API.VMO.ErrorResponse;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Net.WebSockets;
 
 namespace ElGato_API.Controllers
 {
@@ -221,10 +223,83 @@ namespace ElGato_API.Controllers
             }
         }
 
+        [HttpGet]
+        [Authorize(Policy = "user")]
+        [ProducesResponseType(typeof(FollowersRequestVMO), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> GetFollowersRequests()
+        {
+            try
+            {
+                var userId = _jwtService.GetUserIdClaim();
+
+                var res = await _communityService.GetFollowersRequests(userId);
+                if (!res.erro.Success)
+                {
+                    return res.erro.ErrorCode switch
+                    {
+                        ErrorCodes.NotFound => NotFound(res.erro),
+                        ErrorCodes.Internal => StatusCode(500, res.erro),
+                        _ => BadRequest(res.erro)
+                    };
+                }
+
+                return Ok(res.data);
+            }
+            catch(Exception ex)
+            {
+                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured {ex.Message}", Success = false });
+            }
+        }
 
         [HttpPost]
         [Authorize(Policy = "user")]
         [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> RespondToFollowRequest([FromBody] RespondToFollowVM model)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return StatusCode(400, new BasicErrorResponse()
+                    {
+                        ErrorCode = ErrorCodes.ModelStateNotValid,
+                        ErrorMessage = $"Model state not valid. Please check {nameof(RespondToFollowRequest)}",
+                        Success = false
+                    });
+                }
+
+                var userId = _jwtService.GetUserIdClaim();
+
+                var res = await _communityService.RespondToFollowRequest(userId, model);
+                if (!res.Success)
+                {
+                    return res.ErrorCode switch
+                    {
+                        ErrorCodes.NotFound => NotFound(res),
+                        ErrorCodes.Internal => StatusCode(500, res),
+                        ErrorCodes.Forbidden => StatusCode(403, res),
+                        _ => BadRequest(res)
+                    };
+                }
+
+                return Ok();
+            }
+            catch(Exception ex)
+            {
+                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured {ex.Message}", Success = false });
+            }
+        }
+
+        [HttpPost]
+        [Authorize(Policy = "user")]
+        [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status403Forbidden)]
         [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
@@ -246,21 +321,39 @@ namespace ElGato_API.Controllers
                 var userId = _jwtService.GetUserIdClaim();
                 if(userId == userToFollowId) { return StatusCode(403, new BasicErrorResponse() { ErrorCode = ErrorCodes.Forbidden, ErrorMessage = "Can't follow urslf.", Success = false }); }
 
-                var blockCheckTasks = new List<Task<bool>>
+                var acessilibityCheck = await _communityService.CheckIfProfileIsAcessibleForUser(userId, userToFollowId);
+                if (!acessilibityCheck.Acessible)
                 {
-                    _communityService.CheckIfUserIsBlockedBy(userId, userToFollowId),
-                    _communityService.CheckIfUserIsBlocking(userId, userToFollowId),
-                };
-                var blockedCheckResult = await Task.WhenAll(blockCheckTasks);
-
-                if(blockedCheckResult[0] || blockedCheckResult[1])
-                {
-                    return StatusCode(403, new BasicErrorResponse()
+                    switch (acessilibityCheck.UnacessilibityReason)
                     {
-                        ErrorCode = ErrorCodes.Forbidden,
-                        ErrorMessage = "User is blocked.",
-                        Success = false
-                    });
+                        case UnacessilibityReason.Other:
+                            return StatusCode(403, new BasicErrorResponse()
+                            {
+                                ErrorCode = ErrorCodes.Forbidden,
+                                ErrorMessage = "Cannot perform that action.",
+                                Success = false
+                            });
+                        case UnacessilibityReason.Blocked:
+                            return StatusCode(403, new BasicErrorResponse()
+                            {
+                                ErrorCode = ErrorCodes.Forbidden,
+                                ErrorMessage = "User is blocked.",
+                                Success = false
+                            });
+                        case UnacessilibityReason.Private:
+                            var request = await _communityService.RequestFollow(userId, userToFollowId);
+                            if (!request.Success)
+                            {
+                                return request.ErrorCode switch
+                                {
+                                    ErrorCodes.NotFound => NotFound(request),
+                                    ErrorCodes.Internal => StatusCode(500, request),
+                                    _ => BadRequest(request)
+                                };
+                            }
+
+                            return Ok("Requested");
+                    }
                 }
 
                 var res = await _communityService.FollowUser(userId, userToFollowId);
@@ -274,7 +367,7 @@ namespace ElGato_API.Controllers
                     };
                 }
 
-                return Ok();
+                return Ok("Followed");
             }
             catch(Exception ex)
             {

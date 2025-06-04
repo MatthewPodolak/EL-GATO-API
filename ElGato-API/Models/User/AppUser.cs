@@ -22,7 +22,8 @@ namespace ElGato_API.Models.User
         public List<UserFollower> Following { get; set; } = new List<UserFollower>();
         public List<UserBlock> BlockedUsers { get; set; } = new List<UserBlock>();
         public List<UserBlock> BlockedByUsers { get; set; } = new List<UserBlock>();
-
+        public List<UserFollowerRequest> ReceivedFollowRequests { get; set; } = new List<UserFollowerRequest>();
+        public List<UserFollowerRequest> SentFollowRequests { get; set; } = new List<UserFollowerRequest>();
         public LayoutSettings? LayoutSettings { get; set; } = new LayoutSettings
         {
             Animations = true,

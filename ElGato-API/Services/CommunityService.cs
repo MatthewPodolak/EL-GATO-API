@@ -1,4 +1,5 @@
-﻿using ElGato_API.Data;
+﻿using Azure.Core;
+using ElGato_API.Data;
 using ElGato_API.Interfaces;
 using ElGato_API.Models.Feed;
 using ElGato_API.Models.User;
@@ -6,6 +7,7 @@ using ElGato_API.ModelsMongo.Cardio;
 using ElGato_API.ModelsMongo.History;
 using ElGato_API.ModelsMongo.Statistics;
 using ElGato_API.ModelsMongo.Training;
+using ElGato_API.VM.Community;
 using ElGato_API.VMO.Cardio;
 using ElGato_API.VMO.Community;
 using ElGato_API.VMO.ErrorResponse;
@@ -147,6 +149,39 @@ namespace ElGato_API.Services
                 return new AcessibleVMO() { Acessible = false, UnacessilibityReason = UnacessilibityReason.Other };
             }
         }
+
+        public async Task<BasicErrorResponse> RequestFollow(string userAskingId, string userTargetId)
+        {
+            try
+            {
+                var requestCheck = await _context.UserFollowerRequest.FirstOrDefaultAsync(a=>a.RequesterId == userAskingId && a.TargetId == userTargetId);
+                if(requestCheck != null)
+                {
+                    _logger.LogWarning($"User tried to request follow second time. UserId: {userAskingId} Targer: {userTargetId} Method: {nameof(RequestFollow)}");
+                    return new BasicErrorResponse() { ErrorCode = ErrorCodes.Failed, ErrorMessage = "Already requested.", Success = false };
+                }
+
+                var newRequest = new UserFollowerRequest()
+                {
+                    IsPending = true,
+                    RequestedAt = DateTime.UtcNow,
+                    RequesterId = userAskingId,
+                    TargetId = userTargetId,
+                };
+
+                _context.UserFollowerRequest.Add(newRequest);
+                await _context.SaveChangesAsync();
+
+                return new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess, requested." };
+
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to request follow. UserId: {userAskingId} Targer: {userTargetId} Method: {nameof(RequestFollow)}");
+                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, Success = false, ErrorMessage = $"An error occured" };
+            }
+        }
+
         public async Task<BasicErrorResponse> FollowUser(string userId, string userToFollowId)
         {
             try
@@ -318,6 +353,80 @@ namespace ElGato_API.Services
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to unlock user. UserId: {userId} BlockingUserId: {userToUnblockId} Method: {nameof(UnBlockUser)}");
+                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false };
+            }
+        }
+
+        public async Task<BasicErrorResponse> RespondToFollowRequest(string userId, RespondToFollowVM model)
+        {
+            try
+            {
+                switch (model.Decision) 
+                {
+                    case FollowRequestDecision.Accept:
+                        var acceptResponse = await AcceptFollowRequest(userId, model);
+                        return acceptResponse;
+                    case FollowRequestDecision.Remove:
+                        var declineResponse = await DeclineFollowRequest(userId, model);
+                        return declineResponse;
+                }
+
+                _logger.LogError($"Failed while trying to respond to user request. UserId: {userId} Method: {nameof(RespondToFollowRequest)}");
+                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Failed, ErrorMessage = $"Failed while trying to respond to user request. Check {nameof(RespondToFollowVM)}", Success = false };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to respond to user request. UserId: {userId} Method: {nameof(RespondToFollowRequest)}");
+                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false };
+            }
+        }
+
+        private async Task<BasicErrorResponse> AcceptFollowRequest(string userId, RespondToFollowVM model)
+        {
+            try
+            {
+                var request = await _context.UserFollowerRequest.FirstOrDefaultAsync(a => a.Id == model.RequestId && a.TargetId == userId && a.RequesterId == model.RequestingUserId);
+                if (request == null)
+                {
+                    return new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, Success = false, ErrorMessage = "Request does not exists." };
+                }
+
+                _context.UserFollowerRequest.Remove(request);
+                var followResponse = await FollowUser(model.RequestingUserId, userId);
+                if (!followResponse.Success)
+                {
+                    return followResponse;
+                }
+
+                await _context.SaveChangesAsync();
+                return new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to respond to accept user request. UserId: {userId} Method: {nameof(AcceptFollowRequest)}");
+                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false };
+            }
+        }
+
+        private async Task<BasicErrorResponse> DeclineFollowRequest(string userId, RespondToFollowVM model)
+        {
+            try
+            {
+                var request = await _context.UserFollowerRequest.FirstOrDefaultAsync(a => a.Id == model.RequestId && a.TargetId == userId && a.RequesterId == model.RequestingUserId);
+                if (request == null)
+                {
+                    return new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, Success = false, ErrorMessage = "Request does not exists." };
+                }
+
+                _context.UserFollowerRequest.Remove(request);
+                await _context.SaveChangesAsync();
+
+                return new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to respond to decline user request. UserId: {userId} Method: {nameof(DeclineFollowRequest)}");
+
                 return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false };
             }
         }
@@ -921,6 +1030,34 @@ namespace ElGato_API.Services
             {
                 _logger.LogError(ex, $"Failed while trying to get user statistics for spec cardio. UserId: {userId} Method: {nameof(GetCardioTrainingStatistics)}");
                 return (new CardioTrainingStatistics(), new BasicErrorResponse() { Success = false, ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}" });
+            }
+        }
+
+        public async Task<(FollowersRequestVMO data, BasicErrorResponse erro)> GetFollowersRequests(string userId)
+        {
+            try
+            {
+                var vmo = new FollowersRequestVMO();
+                
+                var requests = await _context.UserFollowerRequest.Where(r => r.TargetId == userId && r.IsPending).Include(r => r.Requester).ToListAsync();
+                if(requests != null)
+                {
+                    vmo.Requests = requests.Select(r => new FollowerRequest
+                    {
+                        UserId = r.RequesterId,
+                        Name = r.Requester.Name ?? "User",
+                        Pfp = r.Requester.Pfp,
+                        DateRequested = r.RequestedAt,
+                        RequestId = r.Id,
+                    }).ToList();
+                }
+
+                return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" });
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to get user follower request list. UserId: {userId} Method: {nameof(GetFollowersRequests)}");
+                return (new FollowersRequestVMO(), new BasicErrorResponse() { Success = false, ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}" });
             }
         }
 
