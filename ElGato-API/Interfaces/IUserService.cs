@@ -2,6 +2,7 @@
 using ElGato_API.VM.UserData;
 using ElGato_API.VMO.ErrorResponse;
 using ElGato_API.VMO.User;
+using MongoDB.Driver;
 
 namespace ElGato_API.Interfaces
 {
@@ -18,5 +19,6 @@ namespace ElGato_API.Interfaces
         Task<(BasicErrorResponse error, MakroDataVMO? data)> GetPastMakroData(string userId, string period = "all");
         Task<(BasicErrorResponse error, DailyMakroDistributionVMO? data)> GetDailyMakroDisturbtion(string userId, DateTime date);
         Task<BasicErrorResponse> UpdateLayout(string userId, UserLayoutVM model);
+        Task<BasicErrorResponse> AddToUserStatistics(string userId, List<UserStatisticsVM> model, IClientSessionHandle session = null, bool caloriesNormal = false);
     }
 }

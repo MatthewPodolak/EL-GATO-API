@@ -1,9 +1,11 @@
 using ElGato_API.Data;
 using ElGato_API.Data.JWT;
 using ElGato_API.Interfaces;
+using ElGato_API.Interfaces.Orchesters;
 using ElGato_API.Interfaces.Scrapping;
 using ElGato_API.Models.User;
 using ElGato_API.Services;
+using ElGato_API.Services.Orchesters;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -105,6 +107,9 @@ builder.Services.AddScoped<ICommunityService, CommunityService>();
 
 builder.Services.AddScoped<IScrapService, ScrapService>();
 builder.Services.AddScoped<IHelperService, HelperService>();
+
+builder.Services.AddScoped<ITrainingOrchester, TrainingOrchester>();
+builder.Services.AddScoped<ICardioOrchester, CardioOrchester>();
 
 //IDENTITY
 builder.Services.AddIdentity<AppUser, IdentityRole>()

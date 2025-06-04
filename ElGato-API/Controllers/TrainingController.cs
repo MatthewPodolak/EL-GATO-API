@@ -1,5 +1,6 @@
 ﻿using ElGato_API.Data.JWT;
 using ElGato_API.Interfaces;
+using ElGato_API.Interfaces.Orchesters;
 using ElGato_API.ModelsMongo.History;
 using ElGato_API.Services;
 using ElGato_API.VM.Training;
@@ -18,11 +19,13 @@ namespace ElGato_API.Controllers
     public class TrainingController : Controller
     {
         private readonly ITrainingService _trainingService;
+        private readonly ITrainingOrchester _trainingOrchester;
         private readonly IMongoClient _client;
         private readonly IJwtService _jwtService;
-        public TrainingController(IMongoClient client, ITrainingService trainingService, IJwtService jwtService)
+        public TrainingController(IMongoClient client, ITrainingService trainingService, IJwtService jwtService, ITrainingOrchester trainingOrchester)
         {
             _trainingService = trainingService;
+            _trainingOrchester = trainingOrchester;
             _jwtService = jwtService;
             _client = client;
         }
@@ -273,7 +276,6 @@ namespace ElGato_API.Controllers
         [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
-
         public async Task<IActionResult> AddSeriesToAnExercise([FromBody] List<AddSeriesToAnExerciseVM> model)
         {
             try
@@ -290,27 +292,18 @@ namespace ElGato_API.Controllers
 
                 string userId = _jwtService.GetUserIdClaim();
 
-                var writeTasks = model.Select(m => _trainingService.WriteSeriesForAnExercise(userId, m));
-                var updateTasks = model.Select(m => _trainingService.UpdateExerciseHistory(userId, m.HistoryUpdate, m.Date));
-
-                var allTasks = writeTasks.Concat(updateTasks);
-
-                var res = await Task.WhenAll(allTasks);
-                var failed = res.Where(r => !r.Success).ToList();
-
-                if (failed.Any())
+                var res = await _trainingOrchester.AddSeriesToAnExercise(userId, model);
+                if (!res.Success)
                 {
-                    var firstError = failed.First();
-                    return firstError.ErrorCode switch
+                    return res.ErrorCode switch
                     {
-                        ErrorCodes.NotFound => NotFound(firstError),
-                        ErrorCodes.Internal => StatusCode(500, firstError),
-                        _ => BadRequest(firstError),
+                        ErrorCodes.Internal => StatusCode(500, res),
+                        ErrorCodes.NotFound => NotFound(res),
+                        _ => BadRequest(res)
                     };
                 }
 
                 return Ok();
-
             }
             catch(Exception ex)
             {
@@ -477,22 +470,15 @@ namespace ElGato_API.Controllers
                 }
 
                 string userId = _jwtService.GetUserIdClaim();
-                var patchTasks = model.Select(m => _trainingService.UpdateExerciseSeries(userId, m));
-                var patchHistory = model.Select(m => _trainingService.UpdateExerciseHistory(userId, m.HistoryUpdate, m.Date));
 
-                var allTasks = patchTasks.Concat(patchHistory);
-                var res = await Task.WhenAll(allTasks);
-
-
-                var failed = res.Where(r => !r.Success).ToList();
-                if (failed.Any())
+                var res = await _trainingOrchester.UpdateExerciseSeries(userId, model);
+                if (!res.Success)
                 {
-                    var firstError = failed.First();
-                    return firstError.ErrorCode switch
+                    return res.ErrorCode switch 
                     {
-                        ErrorCodes.NotFound => NotFound(firstError),
-                        ErrorCodes.Internal => StatusCode(500, firstError),
-                        _ => BadRequest(firstError),
+                        ErrorCodes.Internal => StatusCode(500, res),
+                        ErrorCodes.NotFound => NotFound(res),
+                        _ => BadRequest(res)
                     };
                 }
 
@@ -567,23 +553,14 @@ namespace ElGato_API.Controllers
 
                 string userId = _jwtService.GetUserIdClaim();
 
-                var deleteTasks = model.Select(m => _trainingService.RemoveSeriesFromAnExercise(userId, m));
-                var patchTasks = model.Select(m => _trainingService.UpdateExerciseHistory(userId, m.HistoryUpdate, m.Date));
-
-                var allTasks = deleteTasks.Concat(patchTasks);
-                var res = await Task.WhenAll(allTasks);
-
-                var failed = res.Where(r => !r.Success).ToList();
-
-                if (failed.Any())
+                var res = await _trainingOrchester.RemoveSeriesFromAnExercise(userId, model);
+                if (!res.Success)
                 {
-                    var firstError = failed.First();
-                    return firstError.ErrorCode switch
+                    return res.ErrorCode switch
                     {
-                        ErrorCodes.NotFound => NotFound(firstError),
-                        ErrorCodes.Failed => StatusCode(500, firstError),
-                        ErrorCodes.Internal => StatusCode(500, firstError),
-                        _ => BadRequest(firstError),
+                        ErrorCodes.Internal => StatusCode(500, res),
+                        ErrorCodes.NotFound => NotFound(res),
+                        _ => BadRequest(res)
                     };
                 }
 
@@ -618,19 +595,14 @@ namespace ElGato_API.Controllers
 
                 string userId = _jwtService.GetUserIdClaim();
 
-                var removeTasks = model.Select(m => _trainingService.RemoveExerciseFromTrainingDay(userId, m));
-                var res = await Task.WhenAll(removeTasks);
-
-                var failed = res.Where(r => !r.Success).ToList();
-                if (failed.Any())
+                var res = await _trainingOrchester.RemoveExercisesFromTrainingDay(userId, model);
+                if (!res.Success)
                 {
-                    var firstError = failed.First();
-                    return firstError.ErrorCode switch
+                    return res.ErrorCode switch
                     {
-                        ErrorCodes.NotFound => NotFound(firstError),
-                        ErrorCodes.Failed => StatusCode(500, firstError),
-                        ErrorCodes.Internal => StatusCode(500, firstError),
-                        _ => BadRequest(firstError),
+                        ErrorCodes.Internal => StatusCode(500, res),
+                        ErrorCodes.NotFound => NotFound(res),
+                        _ => BadRequest(res)
                     };
                 }
 

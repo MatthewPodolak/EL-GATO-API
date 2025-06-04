@@ -4,8 +4,10 @@ using ElGato_API.Models.Training;
 using ElGato_API.Models.User;
 using ElGato_API.ModelsMongo.Cardio;
 using ElGato_API.ModelsMongo.History;
+using ElGato_API.ModelsMongo.Statistics;
 using ElGato_API.ModelsMongo.Training;
 using ElGato_API.VM.Cardio;
+using ElGato_API.VM.UserData;
 using ElGato_API.VMO.Cardio;
 using ElGato_API.VMO.ErrorResponse;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -130,11 +132,11 @@ namespace ElGato_API.Services
             }
         }
 
-        public async Task<BasicErrorResponse> AddExerciseToTrainingDay(string userId, AddCardioExerciseVM model)
+        public async Task<BasicErrorResponse> AddExerciseToTrainingDay(string userId, AddCardioExerciseVM model, IClientSessionHandle? session = null)
         {
             try
             {
-                var userCardioDocument = await _cardioDocument.Find(a=>a.UserId == userId).FirstOrDefaultAsync();
+                var userCardioDocument = session != null ? await _cardioDocument.Find(session, a=>a.UserId == userId).FirstOrDefaultAsync() : await _cardioDocument.Find(a => a.UserId == userId).FirstOrDefaultAsync();
                 if(userCardioDocument == null)
                 {
                     _logger.LogWarning($"User cardio-training document not found. UserId: {userId} Method: {nameof(AddExerciseToTrainingDay)}");
@@ -185,7 +187,7 @@ namespace ElGato_API.Services
                 };
 
                 targetedDay.Exercises.Add(newCardioRecord);
-                await _cardioDocument.ReplaceOneAsync(a => a.UserId == userId, userCardioDocument);
+                var save = session != null ? await _cardioDocument.ReplaceOneAsync(session, a => a.UserId == userId, userCardioDocument) : await _cardioDocument.ReplaceOneAsync(a => a.UserId == userId, userCardioDocument);
 
                 return new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Sucesss" };
             }
@@ -453,11 +455,11 @@ namespace ElGato_API.Services
             }
         }
 
-        public async Task<BasicErrorResponse> DeleteExercisesFromCardioTrainingDay(string userId, DeleteExercisesFromCardioTrainingVM model)
+        public async Task<BasicErrorResponse> DeleteExercisesFromCardioTrainingDay(string userId, DeleteExercisesFromCardioTrainingVM model, IClientSessionHandle? session = null)
         {
             try
             {
-                var userCardioDocument = await _cardioDocument.Find(a=>a.UserId == userId).FirstOrDefaultAsync();
+                var userCardioDocument = session != null ? await _cardioDocument.Find(session, a=>a.UserId == userId).FirstOrDefaultAsync() : await _cardioDocument.Find(a => a.UserId == userId).FirstOrDefaultAsync();
                 if (userCardioDocument == null)
                 {
                     _logger.LogWarning($"User daily cardio document non existing. creating. UserId: {userId} Method: {nameof(DeleteExercisesFromCardioTrainingDay)}");
@@ -479,7 +481,7 @@ namespace ElGato_API.Services
                     _logger.LogWarning("No exercises removed: no matching IDs found for UserId {UserId} on Date {Date}", userId, model.Date);
                 }
 
-                await _cardioDocument.ReplaceOneAsync(a => a.UserId == userId, userCardioDocument);
+                var save = session != null ? await _cardioDocument.ReplaceOneAsync(session, a => a.UserId == userId, userCardioDocument) : await _cardioDocument.ReplaceOneAsync(a => a.UserId == userId, userCardioDocument);
                 return new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Sucesss" };
 
             }
@@ -489,6 +491,77 @@ namespace ElGato_API.Services
                 return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false };
             }
         }
-       
+
+        public async Task<(BasicErrorResponse error, List<UserStatisticsVM> data)> GetStatisticsDataFromExercise(string userId, List<int> exerciseIds, DateTime date, IClientSessionHandle? session = null)
+        {
+            try
+            {
+                var userCardioDocument = session != null ? await _cardioDocument.Find(session, a => a.UserId == userId).FirstOrDefaultAsync() : await _cardioDocument.Find(a => a.UserId == userId).FirstOrDefaultAsync();
+                if (userCardioDocument == null)
+                {
+                    _logger.LogError($"User daily cardio document not found. UserId: {userId} Method: {nameof(GetStatisticsDataFromExercise)}");
+                    return (new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, ErrorMessage = $"User daily cardio document not found.", Success = false }, new List<UserStatisticsVM>());
+                }
+
+                var targetPlan = userCardioDocument.Trainings.FirstOrDefault(a=>a.Date == date);
+                if(targetPlan == null)
+                {
+                    return (new BasicErrorResponse() { ErrorCode = ErrorCodes.None, ErrorMessage = $"No training for today.", Success = true }, new List<UserStatisticsVM>());
+                }
+
+                var matchingExercises = targetPlan.Exercises.Where(ex => exerciseIds.Contains(ex.PublicId)).ToList();
+
+                if (!matchingExercises.Any())
+                {
+                    return (new BasicErrorResponse { ErrorCode = ErrorCodes.None, ErrorMessage = "No matching exercises found for the specified IDs on that date.", Success = true }, new List<UserStatisticsVM>());
+                }
+
+                double totalCalories = matchingExercises.Sum(ex => ex.CaloriesBurnt);
+                double totalDistance = matchingExercises.Sum(ex => ex.DistanceMeters);
+                TimeSpan totalTime = matchingExercises.Select(ex => ex.Duration).Aggregate(TimeSpan.Zero, (agg, next) => agg.Add(next));
+                double sessionCount = matchingExercises.Count;
+
+                var resultList = new List<UserStatisticsVM>(capacity: 4);
+
+                resultList.Add(new UserStatisticsVM
+                {
+                    Type = StatisticType.CaloriesBurnt,
+                    Date = date.Date,
+                    Value = totalCalories,
+                    TimeValue = TimeSpan.Zero
+                });
+
+                resultList.Add(new UserStatisticsVM
+                {
+                    Type = StatisticType.TotalDistance,
+                    Date = date.Date,
+                    Value = totalDistance,
+                    TimeValue = TimeSpan.Zero
+                });
+
+                resultList.Add(new UserStatisticsVM
+                {
+                    Type = StatisticType.TimeSpend,
+                    Date = date.Date,
+                    Value = 0,
+                    TimeValue = totalTime
+                });
+
+                resultList.Add(new UserStatisticsVM
+                {
+                    Type = StatisticType.ActvSessionsCount,
+                    Date = date.Date,
+                    Value = sessionCount,
+                    TimeValue = TimeSpan.Zero
+                });
+
+                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" }, resultList);
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to get statistics from cardio exertcises. UserId: {userId} Method: {nameof(GetStatisticsDataFromExercise)}");
+                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false}, new List<UserStatisticsVM>());
+            }
+        }
     }
 }

@@ -3,12 +3,14 @@ using ElGato_API.Interfaces;
 using ElGato_API.Models.User;
 using ElGato_API.ModelsMongo.Diet;
 using ElGato_API.ModelsMongo.History;
+using ElGato_API.ModelsMongo.Statistics;
 using ElGato_API.VM.UserData;
 using ElGato_API.VMO.ErrorResponse;
 using ElGato_API.VMO.User;
 using Microsoft.EntityFrameworkCore;
 using MongoDB.Driver;
 using MongoDB.Driver.Linq;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace ElGato_API.Services
 {
@@ -19,6 +21,7 @@ namespace ElGato_API.Services
         private readonly IMongoCollection<ExercisesHistoryDocument> _exercisesHistoryCollection;
         private readonly IMongoCollection<DietHistoryDocument> _dietHistoryCollection;
         private readonly IMongoCollection<DietDocument> _dailyDietCollection;
+        private readonly IMongoCollection<UserStatisticsDocument> _userStatisticsDocument;
         private readonly IHelperService _helperService;
         public UserService(AppDbContext dbContext, ILogger<UserService> logger, IMongoDatabase database, IHelperService helperService) 
         { 
@@ -27,6 +30,7 @@ namespace ElGato_API.Services
             _exercisesHistoryCollection = database.GetCollection<ExercisesHistoryDocument>("ExercisesHistory");
             _dietHistoryCollection = database.GetCollection<DietHistoryDocument>("DietHistory");
             _dailyDietCollection = database.GetCollection<DietDocument>("DailyDiet");
+            _userStatisticsDocument = database.GetCollection<UserStatisticsDocument>("Statistics");
             _helperService = helperService;
         }
 
@@ -709,5 +713,231 @@ namespace ElGato_API.Services
             }
         }
 
+        public async Task<BasicErrorResponse> AddToUserStatistics(string userId, List<UserStatisticsVM> model, IClientSessionHandle session = null, bool caloriesNormal = false)
+        {
+            try
+            {
+                UserStatisticsDocument userStatisticsDoc;
+                if (session == null)
+                {
+                    userStatisticsDoc = await _userStatisticsDocument.Find(a => a.UserId == userId).FirstOrDefaultAsync();
+                }
+                else
+                {
+                    userStatisticsDoc = await _userStatisticsDocument.Find(session, a => a.UserId == userId).FirstOrDefaultAsync();
+                }
+
+                if(userStatisticsDoc == null)
+                {
+                    _logger.LogWarning($"user {userId} statistics collection does not exist. creating...");
+                    var newDoc = await _helperService.CreateMissingDoc(userId, _userStatisticsDocument);
+                    if (newDoc == null)
+                    {
+                        return (new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, ErrorMessage = "Coudn't save user statistics. Document not found.", Success = false });
+                    }
+
+                    userStatisticsDoc = newDoc;
+                }
+
+                foreach(var item in model)
+                {
+                    var group = userStatisticsDoc.UserStatisticGroups.FirstOrDefault(g => g.Type == item.Type);
+                    if (group == null)
+                    {
+                        group = new UserStatisticGroup
+                        {
+                            Type = item.Type,
+                            Records = new List<UserStatisticRecord>()
+                        };
+                        userStatisticsDoc.UserStatisticGroups.Add(group);
+                    }
+
+                    var existingRecord = group.Records.FirstOrDefault(r => r.Date.Date == item.Date.Date);
+
+                    switch (item.Type)
+                    {
+                        case StatisticType.CaloriesBurnt:
+                            {
+                                double newCalories = item.Value;
+
+                                if (existingRecord != null)
+                                {
+                                    if (caloriesNormal)
+                                    {
+                                        existingRecord.Value += newCalories;
+                                        userStatisticsDoc.TotalCaloriesCounter += newCalories;
+                                    }
+                                    else
+                                    {
+                                        double oldCalories = existingRecord.Value;
+                                        double delta = newCalories - oldCalories;
+
+                                        if (delta > 0)
+                                        {
+                                            existingRecord.Value = newCalories;
+                                            userStatisticsDoc.TotalCaloriesCounter += delta;
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    var record = new UserStatisticRecord
+                                    {
+                                        Date = item.Date,
+                                        Value = newCalories
+                                    };
+                                    group.Records.Add(record);
+                                    userStatisticsDoc.TotalCaloriesCounter += newCalories;
+                                }
+                            }
+                            break;
+
+                        case StatisticType.StepsTaken:
+                            {
+                                int newSteps = (int)item.Value;
+
+                                if (existingRecord != null)
+                                {
+                                    int oldSteps = (int)existingRecord.Value;
+                                    int delta = newSteps - oldSteps;
+                                    if (delta > 0)
+                                    {
+                                        existingRecord.Value = newSteps;
+                                        userStatisticsDoc.TotalStepsCounter += delta;
+                                    }
+                                }
+                                else
+                                {
+                                    var record = new UserStatisticRecord
+                                    {
+                                        Date = item.Date,
+                                        Value = newSteps
+                                    };
+                                    group.Records.Add(record);
+                                    userStatisticsDoc.TotalStepsCounter += newSteps;
+                                }
+                            }
+                            break;
+
+                        case StatisticType.TimeSpend:
+                            {
+                                var change = item.TimeValue ?? TimeSpan.Zero;
+
+                                if (existingRecord != null)
+                                {
+                                    var oldTime = existingRecord.TimeValue;
+                                    var newTime = oldTime + change;
+                                    existingRecord.TimeValue = newTime;
+
+                                    userStatisticsDoc.TotalTimeSpend += change;
+                                }
+                                else
+                                {
+                                    var record = new UserStatisticRecord
+                                    {
+                                        Date = item.Date,
+                                        TimeValue = change
+                                    };
+                                    group.Records.Add(record);
+
+                                    userStatisticsDoc.TotalTimeSpend += change;
+                                }
+                            }
+                            break;
+
+                        case StatisticType.ActvSessionsCount:
+                            {
+                                int changeSessions = (int)item.Value;
+
+                                if (existingRecord != null)
+                                {
+                                    int oldCount = (int)existingRecord.Value;
+                                    int newCount = oldCount + changeSessions;
+                                    existingRecord.Value = newCount;
+
+                                    userStatisticsDoc.TotalSessionsCounter += changeSessions;
+                                }
+                                else
+                                {
+                                    var record = new UserStatisticRecord
+                                    {
+                                        Date = item.Date,
+                                        Value = changeSessions
+                                    };
+                                    group.Records.Add(record);
+
+                                    userStatisticsDoc.TotalSessionsCounter += changeSessions;
+                                }
+                            }
+                            break;
+
+                        case StatisticType.WeightLifted:
+                            {
+                                double changeKg = item.Value;
+
+                                if (existingRecord != null)
+                                {
+                                    existingRecord.Value = changeKg;
+                                    userStatisticsDoc.TotalWeightLiftedCounter = changeKg;
+                                }
+                                else
+                                {
+                                    var record = new UserStatisticRecord
+                                    {
+                                        Date = item.Date,
+                                        Value = changeKg
+                                    };
+                                    group.Records.Add(record);
+
+                                    userStatisticsDoc.TotalWeightLiftedCounter += changeKg;
+                                }
+                            }
+                            break;
+
+                        case StatisticType.TotalDistance:
+                            {
+                                double changeDistance = item.Value;
+
+                                if (existingRecord != null)
+                                {
+                                    double oldDistance = existingRecord.Value;
+                                    double newDistance = oldDistance + changeDistance;
+                                    existingRecord.Value = newDistance;
+
+                                    userStatisticsDoc.TotalDistanceCounter += changeDistance;
+                                }
+                                else
+                                {
+                                    var record = new UserStatisticRecord
+                                    {
+                                        Date = item.Date,
+                                        Value = changeDistance
+                                    };
+                                    group.Records.Add(record);
+
+                                    userStatisticsDoc.TotalDistanceCounter += changeDistance;
+                                }
+                            }
+                            break;
+                    }
+                }
+
+                if (session == null)
+                {
+                    await _userStatisticsDocument.ReplaceOneAsync(d => d.UserId == userId, userStatisticsDoc);
+                }
+                else
+                {
+                    await _userStatisticsDocument.ReplaceOneAsync(session, d => d.UserId == userId, userStatisticsDoc);
+                }
+
+                return new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess" };
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to add statistics to user statistics doc. UserId: {userId} Model: {model} Method: {nameof(AddToUserStatistics)}");
+                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, Success = false, ErrorMessage = $"An error occured: {ex.Message}" };
+            }
+        }
     }
 }

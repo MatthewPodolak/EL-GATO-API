@@ -1,5 +1,6 @@
 ﻿using ElGato_API.Data.JWT;
 using ElGato_API.Interfaces;
+using ElGato_API.Interfaces.Orchesters;
 using ElGato_API.VM.Cardio;
 using ElGato_API.VMO.Achievments;
 using ElGato_API.VMO.Cardio;
@@ -17,11 +18,13 @@ namespace ElGato_API.Controllers
         private readonly IJwtService _jwtService;
         private readonly ICardioService _cardioService;
         private readonly IAchievmentService _achievmentService;
-        public CardioController(IJwtService jwtService, ICardioService cardioService, IAchievmentService achievmentService)
+        private readonly ICardioOrchester _cardioOrchester;
+        public CardioController(IJwtService jwtService, ICardioService cardioService, IAchievmentService achievmentService, ICardioOrchester cardioOrchester)
         {
             _jwtService = jwtService;
             _cardioService = cardioService;
             _achievmentService = achievmentService;
+            _cardioOrchester = cardioOrchester;
         }
 
         [HttpGet]
@@ -136,10 +139,10 @@ namespace ElGato_API.Controllers
 
                 var userId = _jwtService.GetUserIdClaim();
 
-                var res = await _cardioService.AddExerciseToTrainingDay(userId, model);
-                if (!res.Success)
+                var res = await _cardioOrchester.AddExerciseToTrainingDay(userId, model);
+                if (!res.Status.Success)
                 {
-                    return res.ErrorCode switch
+                    return res.Status.ErrorCode switch
                     {
                         ErrorCodes.NotFound => NotFound(res),
                         ErrorCodes.Internal => StatusCode(500, res),
@@ -147,40 +150,7 @@ namespace ElGato_API.Controllers
                     };
                 }
 
-                var badgeTask = _achievmentService.CheckAndAddBadgeProgressForUser(userId, new VM.Achievments.BadgeIncDataVM
-                {
-                    ActivityType = model.ActivityType,
-                    CaloriesBurnt = model.CaloriesBurnt,
-                    Distance = model.Distance
-                });
-                var familyTaskCardio = _achievmentService.GetCurrentAchivmentIdFromFamily("CARDIO", userId);
-                var familyTaskCalorie = _achievmentService.GetCurrentAchivmentIdFromFamily("CALORIE", userId);
-
-                await Task.WhenAll(badgeTask, familyTaskCardio, familyTaskCalorie);
-                var (badgeIncrement, achievmentFamilyResult, achievmentFamilyResultCalorie) = (badgeTask.Result, familyTaskCardio.Result, familyTaskCalorie.Result);
-
-
-                if(!achievmentFamilyResult.error.Success || achievmentFamilyResult.achievmentName == null || !achievmentFamilyResultCalorie.error.Success || achievmentFamilyResultCalorie.achievmentName == null)
-                {
-                    return Ok(new AchievmentResponse() { Status = new BasicErrorResponse() { Success = true, ErrorMessage = "Sucess", ErrorCode = ErrorCodes.None } });
-                }
-
-                var incrementCardioTask = _achievmentService.IncrementAchievmentProgress(achievmentFamilyResult.achievmentName, userId, 1);
-                var incrementCalorieTask = _achievmentService.IncrementAchievmentProgress(achievmentFamilyResultCalorie.achievmentName, userId, model.CaloriesBurnt);
-
-                await Task.WhenAll(incrementCardioTask, incrementCalorieTask);
-                var (cardioAchRes, calorieAchRes) = (incrementCardioTask.Result, incrementCalorieTask.Result);
-                if (cardioAchRes.error.Success && cardioAchRes.ach.Achievment != null)
-                {
-                    return Ok(cardioAchRes.ach);
-                }
-
-                if (calorieAchRes.error.Success && calorieAchRes.ach.Achievment != null)
-                {
-                    return Ok(calorieAchRes.ach);
-                }
-
-                return Ok(new AchievmentResponse() { Status = new BasicErrorResponse() { Success = true, ErrorMessage = "Sucess", ErrorCode = ErrorCodes.None} });
+                return Ok(res.Status);
             }
             catch (Exception ex)
             {
@@ -281,7 +251,7 @@ namespace ElGato_API.Controllers
 
                 var userId = _jwtService.GetUserIdClaim();
 
-                var res = await _cardioService.DeleteExercisesFromCardioTrainingDay(userId, model);
+                var res = await _cardioOrchester.DeleteExercisesFromCardioTrainingDay(userId, model);
                 if (!res.Success)
                 {
                     return res.ErrorCode switch

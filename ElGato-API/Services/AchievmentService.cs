@@ -4,6 +4,7 @@ using ElGato_API.Models.Feed;
 using ElGato_API.Models.User;
 using ElGato_API.ModelsMongo.Cardio;
 using ElGato_API.VM.Achievments;
+using ElGato_API.VM.UserData;
 using ElGato_API.VMO.Achievments;
 using ElGato_API.VMO.Cardio;
 using ElGato_API.VMO.ErrorResponse;
@@ -16,18 +17,30 @@ namespace ElGato_API.Services
         private readonly AppDbContext _context;
         private readonly ILogger<AchievmentService> _logger;
         private readonly IServiceScopeFactory _scopeFactory;
+        private readonly IUserService _userService;
 
-        public AchievmentService(AppDbContext context, ILogger<AchievmentService> logger, IServiceScopeFactory scopeFactory) 
+        public AchievmentService(AppDbContext context, ILogger<AchievmentService> logger, IServiceScopeFactory scopeFactory, IUserService userService) 
         { 
             _context = context;
             _logger = logger;
             _scopeFactory = scopeFactory;
+            _userService = userService;
         }
 
-        public async Task<(BasicErrorResponse error, string? achievmentName)> GetCurrentAchivmentIdFromFamily(string achievmentFamily, string userId)
+        public async Task<(BasicErrorResponse error, string? achievmentName)> GetCurrentAchivmentIdFromFamily(string achievmentFamily, string userId, AppDbContext? context)
         {
-            using var scope = _scopeFactory.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            AppDbContext dbContext;
+
+            if(context == null)
+            {
+                using var scope = _scopeFactory.CreateScope();
+                dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            }
+            else
+            {
+                dbContext = context;
+            }
+         
 
             try
             {
@@ -78,10 +91,19 @@ namespace ElGato_API.Services
         }
 
 
-        public async Task<(BasicErrorResponse error, AchievmentResponse? ach)> IncrementAchievmentProgress(string achievmentStringId, string userId, int incValue)
+        public async Task<(BasicErrorResponse error, AchievmentResponse? ach)> IncrementAchievmentProgress(string achievmentStringId, string userId, int incValue, AppDbContext? context)
         {
-            using var scope = _scopeFactory.CreateScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            AppDbContext dbContext;
+
+            if (context == null)
+            {
+                using var scope = _scopeFactory.CreateScope();
+                dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            }
+            else
+            {
+                dbContext = context;
+            }
 
             try
             {
@@ -283,11 +305,12 @@ namespace ElGato_API.Services
             }
         }
 
-        public async Task<BasicErrorResponse> CheckAndAddBadgeProgressForUser(string userId, BadgeIncDataVM model)
+        public async Task<BasicErrorResponse> CheckAndAddBadgeProgressForUser(string userId, BadgeIncDataVM model, AppDbContext? context = null)
         {
             try
             {
-                var user = await _context.AppUser.Include(a => a.UserBadges).Include(a => a.ActiveChallanges).ThenInclude(ac => ac.Challenge)
+                var user = context != null ? await context.AppUser.Include(a => a.UserBadges).Include(a => a.ActiveChallanges).ThenInclude(ac => ac.Challenge)
+                    .FirstOrDefaultAsync(a => a.Id == userId) : await _context.AppUser.Include(a => a.UserBadges).Include(a => a.ActiveChallanges).ThenInclude(ac => ac.Challenge)
                     .FirstOrDefaultAsync(a => a.Id == userId);
 
                 if (user == null || user.ActiveChallanges == null)
@@ -374,7 +397,7 @@ namespace ElGato_API.Services
                     user.ActiveChallanges.Remove(challenge);
                 }
 
-                await _context.SaveChangesAsync();
+                var save = context != null ? await context.SaveChangesAsync() : await _context.SaveChangesAsync();
 
                 return new BasicErrorResponse
                 {
@@ -394,6 +417,100 @@ namespace ElGato_API.Services
                 };
             }
         }
+
+        public async Task<(BasicErrorResponse error, AchievmentResponse? ach)> AddFromHealthConnectToStatisticsAndIncrementAchievments(string userId, List<UserStatisticsVM> data)
+        {
+            try
+            {
+                await using var sqlTx = await _context.Database.BeginTransactionAsync();
+
+                var sqlTask = await AddDataFromHealthConnectToAchievmentProgess(userId, data, _context);
+                if (!sqlTask.error.Success)
+                {
+                    await sqlTx.RollbackAsync();
+                    return (sqlTask.error, null);
+                }
+
+                var mongoResult = await _userService.AddToUserStatistics(userId, data);
+                if (!mongoResult.Success)
+                {
+                    await sqlTx.RollbackAsync();
+                    return (mongoResult, null);
+                }
+
+                await sqlTx.CommitAsync();
+                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess"}, sqlTask.ach ?? null);
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to add from HK to statistics and achievments. UserId: {userId} Method: {nameof(AddFromHealthConnectToStatisticsAndIncrementAchievments)}");
+                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, Success = false, ErrorMessage = $"An error occured: {ex.Message}" }, null);
+            }
+        }
+
+        private async Task<(BasicErrorResponse error, AchievmentResponse? ach)> AddDataFromHealthConnectToAchievmentProgess(string userId, List<UserStatisticsVM> data, AppDbContext context)
+        {
+            try
+            {
+                var achievmentResponse = new AchievmentResponse();
+
+                foreach(var item in data)
+                {
+                    switch (item.Type)
+                    {
+                        case ModelsMongo.Statistics.StatisticType.CaloriesBurnt:
+                            var achFamily = await GetCurrentAchivmentIdFromFamily("CALORIE", userId, context);
+                            if (!achFamily.error.Success || String.IsNullOrEmpty(achFamily.achievmentName))
+                            {
+                                _logger.LogError($"Failed while trying to add progress ach. Method: {nameof(AddDataFromHealthConnectToAchievmentProgess)}");
+                                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Failed, Success = false, ErrorMessage = $"An error occured while trying to add progres." }, null);
+                            }
+
+                            var achResponseCalorie = await IncrementAchievmentProgress(achFamily.achievmentName, userId, (int)item.Value, context);
+                            if (!achResponseCalorie.error.Success)
+                            {
+                                _logger.LogError($"Failed while trying to add progress ach. Method: {nameof(AddDataFromHealthConnectToAchievmentProgess)}");
+                                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Failed, Success = false, ErrorMessage = $"An error occured while trying to add progres." }, null);
+                            }
+
+                            if(achievmentResponse != null)
+                            {
+                                achievmentResponse = achResponseCalorie.ach ?? null;
+                            }
+
+                            break;
+                        case ModelsMongo.Statistics.StatisticType.StepsTaken:
+                            var achFamilySteps = await GetCurrentAchivmentIdFromFamily("STEPS", userId, context);
+                            if (!achFamilySteps.error.Success || String.IsNullOrEmpty(achFamilySteps.achievmentName))
+                            {
+                                _logger.LogError($"Failed while trying to add progress ach. Method: {nameof(AddDataFromHealthConnectToAchievmentProgess)}");
+                                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Failed, Success = false, ErrorMessage = $"An error occured while trying to add progres." }, null);
+                            }
+
+                            var achResponseSteps = await IncrementAchievmentProgress(achFamilySteps.achievmentName, userId, (int)item.Value, context);
+                            if (!achResponseSteps.error.Success)
+                            {
+                                _logger.LogError($"Failed while trying to add progress ach. Method: {nameof(AddDataFromHealthConnectToAchievmentProgess)}");
+                                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Failed, Success = false, ErrorMessage = $"An error occured while trying to add progres." }, null);
+                            }
+
+                            if(achievmentResponse != null)
+                            {
+                                achievmentResponse = achResponseSteps.ach ?? null;
+                            }
+                            break;
+                    }
+                }
+
+                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" }, achievmentResponse);
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to add data to ach progress. UserId: {userId} Method: {nameof(AddDataFromHealthConnectToAchievmentProgess)}");
+                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, Success = false, ErrorMessage = $"An error occured: {ex.Message}"}, null);
+            }
+        }
+       
     }
 
 }

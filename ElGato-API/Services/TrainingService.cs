@@ -4,9 +4,11 @@ using ElGato_API.Models.Training;
 using ElGato_API.ModelsMongo.History;
 using ElGato_API.ModelsMongo.Training;
 using ElGato_API.VM.Training;
+using ElGato_API.VM.UserData;
 using ElGato_API.VMO.ErrorResponse;
 using ElGato_API.VMO.Training;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using MongoDB.Driver;
 
 namespace ElGato_API.Services
@@ -20,8 +22,9 @@ namespace ElGato_API.Services
         private readonly IMongoCollection<ExercisesHistoryDocument> _exercisesHistoryCollection;
         private readonly IMongoCollection<SavedTrainingsDocument> _savedTrainingsCollection;
         private readonly IHelperService _helperService;
+        private readonly IUserService _userService;
         private readonly ILogger<TrainingService> _logger;
-        public TrainingService(IMongoDatabase database, AppDbContext context, ILogger<TrainingService> logger, IHelperService helperService) 
+        public TrainingService(IMongoDatabase database, AppDbContext context, ILogger<TrainingService> logger, IHelperService helperService, IUserService userService) 
         {
             _trainingCollection = database.GetCollection<DailyTrainingDocument>("DailyTraining");
             _trainingHistoryCollection = database.GetCollection<TrainingHistoryDocument>("TrainingHistory");
@@ -29,6 +32,7 @@ namespace ElGato_API.Services
             _exercisesHistoryCollection = database.GetCollection<ExercisesHistoryDocument>("ExercisesHistory");
             _savedTrainingsCollection = database.GetCollection<SavedTrainingsDocument>("SavedTrainings");
             _helperService = helperService;
+            _userService = userService;
             _context = context;
             _logger = logger;
         }
@@ -213,6 +217,78 @@ namespace ElGato_API.Services
             }
         }
 
+        public async Task<double> GetTotalExerciseWeightValue(string userId, DateTime date, List<int> exercisePublicIds, IClientSessionHandle session = null)
+        {
+            try
+            {
+                var userTrainingDoc = session != null ? await _trainingCollection.Find(session, d => d.UserId == userId).FirstOrDefaultAsync() : await _trainingCollection.Find(d => d.UserId == userId).FirstOrDefaultAsync();
+                if(userTrainingDoc == null)
+                {
+                    return 0;
+                }
+
+                var targetPlan = userTrainingDoc.Trainings.FirstOrDefault(p => p.Date.Date == date.Date);
+
+                if (targetPlan == null)
+                {
+                    return 0;
+                }
+
+                var matchingExercises = targetPlan.Exercises.Where(ex => exercisePublicIds.Contains(ex.PublicId));
+
+                double totalWeight = 0.0;
+                foreach (var exercise in matchingExercises)
+                {
+                    if (exercise.Series == null)
+                        continue;
+
+                    foreach (var series in exercise.Series)
+                    {
+                        totalWeight += series.WeightKg * series.Repetitions;
+                    }
+                }
+
+                return totalWeight;
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to get total exercise weight. UserId: {userId} Date: {date} Ids: {exercisePublicIds}, Method: {nameof(GetTotalExerciseWeightValue)}");
+                return 0;
+            }
+        }
+
+        public async Task<List<int>> GetExerciseInTrainingDayPublicIds(string userId, DateTime date, IClientSessionHandle session = null)
+        {
+            try
+            {
+                var publicIdsList = new List<int>();
+
+                var userTrainingDoc = session != null ? await _trainingCollection.Find(session, d => d.UserId == userId).FirstOrDefaultAsync() : await _trainingCollection.Find(d => d.UserId == userId).FirstOrDefaultAsync();
+                if (userTrainingDoc == null)
+                {
+                    return publicIdsList;
+                }
+
+                var targetPlan = userTrainingDoc.Trainings.FirstOrDefault(p => p.Date.Date == date.Date);
+
+                if (targetPlan == null)
+                {
+                    return publicIdsList;
+                }            
+
+                foreach(var ex in targetPlan.Exercises)
+                {
+                    publicIdsList.Add(ex.PublicId);
+                }
+
+                return publicIdsList;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to get total exercise weight. UserId: {userId} Date: {date} Ids: {GetExerciseInTrainingDayPublicIds}, Method: {nameof(GetTotalExerciseWeightValue)}");
+                return new List<int>();
+            }
+        }
         public async Task<BasicErrorResponse> SaveTraining(string userId, SaveTrainingVM model)
         {
             try
@@ -520,7 +596,7 @@ namespace ElGato_API.Services
             return data;
         }
 
-        public async Task<BasicErrorResponse> WriteSeriesForAnExercise(string userId, AddSeriesToAnExerciseVM model)
+        public async Task<BasicErrorResponse> WriteSeriesForAnExercise(string userId, AddSeriesToAnExerciseVM model, IClientSessionHandle session = null)
         {
             try
             {
@@ -551,7 +627,7 @@ namespace ElGato_API.Services
                     Builders<DailyTrainingDocument>.Filter.ElemMatch(t => t.Trainings, training => training.Date == model.Date)
                 );
 
-                var trainingDocument = await _trainingCollection.Find(filter).FirstOrDefaultAsync();
+                var trainingDocument = session != null ? await _trainingCollection.Find(session, filter).FirstOrDefaultAsync() : await _trainingCollection.Find(filter).FirstOrDefaultAsync();
                 if (trainingDocument == null)
                 {
                     _logger.LogWarning($"Training document not found. UserId: {userId} Method: {nameof(WriteSeriesForAnExercise)}");
@@ -612,7 +688,7 @@ namespace ElGato_API.Services
 
                 var update = Builders<DailyTrainingDocument>.Update.PushEach($"Trainings.{trainingIndex}.Exercises.{exerciseIndex}.Series", newSeriesList);
 
-                var result = await _trainingCollection.UpdateOneAsync(updateFilter, update);
+                var result = session != null ? await _trainingCollection.UpdateOneAsync(session, updateFilter, update) : await _trainingCollection.UpdateOneAsync(updateFilter, update);
 
                 if (result.ModifiedCount == 0)
                 {
@@ -705,11 +781,20 @@ namespace ElGato_API.Services
             }
         }
 
-        public async Task<BasicErrorResponse> UpdateExerciseHistory(string userId, HistoryUpdateVM model, DateTime date)
+        public async Task<BasicErrorResponse> UpdateExerciseHistory(string userId, HistoryUpdateVM model, DateTime date, IClientSessionHandle session = null)
         {
             try
             {
-                var userHistoryDocument = await _exercisesHistoryCollection.Find(a=>a.UserId == userId).FirstOrDefaultAsync();
+                ExercisesHistoryDocument userHistoryDocument;
+                if(session == null)
+                {
+                    userHistoryDocument = await _exercisesHistoryCollection.Find(a => a.UserId == userId).FirstOrDefaultAsync();
+                }
+                else
+                {
+                    userHistoryDocument = await _exercisesHistoryCollection.Find(session, a => a.UserId == userId).FirstOrDefaultAsync();
+                }
+
                 if (userHistoryDocument == null)
                 {
                     ExercisesHistoryDocument doc = new ExercisesHistoryDocument()
@@ -730,7 +815,15 @@ namespace ElGato_API.Services
                         }
                     };
 
-                    await _exercisesHistoryCollection.InsertOneAsync(doc);
+                    if(session == null)
+                    {
+                        await _exercisesHistoryCollection.InsertOneAsync(doc);
+                    }
+                    else
+                    {
+                        await _exercisesHistoryCollection.InsertOneAsync(session, doc);
+                    }
+
                     return new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = $"Success" }; 
                 }
 
@@ -749,7 +842,14 @@ namespace ElGato_API.Services
                     var filter = Builders<ExercisesHistoryDocument>.Filter.Eq(a => a.UserId, userId);
                     var update = Builders<ExercisesHistoryDocument>.Update.Set(a => a.ExerciseHistoryLists, userHistoryDocument.ExerciseHistoryLists);
 
-                    await _exercisesHistoryCollection.UpdateOneAsync(filter, update);
+                    if(session == null)
+                    {
+                        await _exercisesHistoryCollection.UpdateOneAsync(filter, update);
+                    }
+                    else
+                    {
+                        await _exercisesHistoryCollection.UpdateOneAsync(session, filter, update);
+                    }
 
                     return new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Success" };
                 }
@@ -767,7 +867,14 @@ namespace ElGato_API.Services
                 var updateFilter = Builders<ExercisesHistoryDocument>.Filter.Eq(a => a.UserId, userId);
                 var updateDefinition = Builders<ExercisesHistoryDocument>.Update.Set(a => a.ExerciseHistoryLists, userHistoryDocument.ExerciseHistoryLists);
 
-                await _exercisesHistoryCollection.UpdateOneAsync(updateFilter, updateDefinition);
+                if(session == null)
+                {
+                    await _exercisesHistoryCollection.UpdateOneAsync(updateFilter, updateDefinition);
+                }
+                else
+                {
+                    await _exercisesHistoryCollection.UpdateOneAsync(session, updateFilter, updateDefinition);
+                }
 
                 return new BasicErrorResponse { Success = true };
             }
@@ -783,11 +890,11 @@ namespace ElGato_API.Services
             }
         }
 
-        public async Task<BasicErrorResponse> RemoveSeriesFromAnExercise(string userId, RemoveSeriesFromExerciseVM model)
+        public async Task<BasicErrorResponse> RemoveSeriesFromAnExercise(string userId, RemoveSeriesFromExerciseVM model, IClientSessionHandle session = null)
         {
             try
             {
-                var trainingDocument = await _trainingCollection.Find(a => a.UserId == userId).FirstOrDefaultAsync();
+                var trainingDocument = session != null ? await _trainingCollection.Find(session, a => a.UserId == userId).FirstOrDefaultAsync() : await _trainingCollection.Find(a => a.UserId == userId).FirstOrDefaultAsync();
                 if (trainingDocument == null) 
                 {
                     _logger.LogWarning($"Training document not found. UserId: {userId} Method: {nameof(RemoveSeriesFromAnExercise)}");
@@ -818,7 +925,7 @@ namespace ElGato_API.Services
                     }
                 }
 
-                var updateResult = await _trainingCollection.ReplaceOneAsync(doc => doc.UserId == userId, trainingDocument);
+                var updateResult = session != null ? await _trainingCollection.ReplaceOneAsync(session, doc => doc.UserId == userId, trainingDocument) : await _trainingCollection.ReplaceOneAsync(doc => doc.UserId == userId, trainingDocument);
 
                 if (!updateResult.IsAcknowledged || updateResult.ModifiedCount == 0)
                 {
@@ -835,11 +942,11 @@ namespace ElGato_API.Services
             }
         }
 
-        public async Task<BasicErrorResponse> RemoveExerciseFromTrainingDay(string userId, RemoveExerciseFromTrainingDayVM model)
+        public async Task<BasicErrorResponse> RemoveExerciseFromTrainingDay(string userId, RemoveExerciseFromTrainingDayVM model, IClientSessionHandle session = null)
         {
             try
             {
-                var trainingDocument = await _trainingCollection.Find(a => a.UserId == userId).FirstOrDefaultAsync();
+                var trainingDocument = session != null ? await _trainingCollection.Find(session, a => a.UserId == userId).FirstOrDefaultAsync() : await _trainingCollection.Find(a => a.UserId == userId).FirstOrDefaultAsync();
                 if (trainingDocument == null) 
                 {
                     _logger.LogWarning($"Training document not found. UserId: {userId} Method: {nameof(RemoveExerciseFromTrainingDay)}");
@@ -863,7 +970,7 @@ namespace ElGato_API.Services
 
                 targetedDay.Exercises.Remove(targetExercise);
 
-                var updateResult = await _trainingCollection.ReplaceOneAsync(doc => doc.UserId == userId, trainingDocument);
+                var updateResult = session != null ? await _trainingCollection.ReplaceOneAsync(session, doc => doc.UserId == userId, trainingDocument) : await _trainingCollection.ReplaceOneAsync(doc => doc.UserId == userId, trainingDocument);
                 if (!updateResult.IsAcknowledged || updateResult.ModifiedCount == 0)
                 {
                     _logger.LogError($"Mongo update failed while trying to remove exercises from training day. UserId: {userId} Data: {model} Method: {nameof(RemoveExerciseFromTrainingDay)}");
@@ -888,7 +995,7 @@ namespace ElGato_API.Services
                     ExerciseData = new ExerciseData() { Date = model.Date, Series = hisSeries }
                 };
 
-                var res = await UpdateExerciseHistory(userId, hisModel, model.Date);
+                var res = session != null ? await UpdateExerciseHistory(userId, hisModel, model.Date, session) : await UpdateExerciseHistory(userId, hisModel, model.Date);
                 return res;
             }
             catch(Exception ex)
@@ -978,11 +1085,11 @@ namespace ElGato_API.Services
             }
         }
 
-        public async Task<BasicErrorResponse> UpdateExerciseSeries(string userId, UpdateExerciseSeriesVM model)
+        public async Task<BasicErrorResponse> UpdateExerciseSeries(string userId, UpdateExerciseSeriesVM model, IClientSessionHandle session = null)
         {
             try
             {
-                var userDailyTrainingDoc = await _trainingCollection.Find(a => a.UserId == userId).FirstOrDefaultAsync();
+                var userDailyTrainingDoc = session != null ? await _trainingCollection.Find(session, a => a.UserId == userId).FirstOrDefaultAsync() : await _trainingCollection.Find(a => a.UserId == userId).FirstOrDefaultAsync();
                 if (userDailyTrainingDoc == null) 
                 {
                     _logger.LogWarning($"Training document not found. UserId: {userId} Method: {nameof(UpdateExerciseSeries)}");
@@ -1023,7 +1130,7 @@ namespace ElGato_API.Services
                     }
                 }
 
-                await _trainingCollection.ReplaceOneAsync(doc => doc.Id == userDailyTrainingDoc.Id, userDailyTrainingDoc);
+                var write = session != null ? await _trainingCollection.ReplaceOneAsync(session, doc => doc.Id == userDailyTrainingDoc.Id, userDailyTrainingDoc) : await _trainingCollection.ReplaceOneAsync(doc => doc.Id == userDailyTrainingDoc.Id, userDailyTrainingDoc);
                 return new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Successs" };
             }
             catch (Exception ex)
@@ -1265,6 +1372,5 @@ namespace ElGato_API.Services
                 return new BasicErrorResponse(){ ErrorCode = ErrorCodes.Internal, ErrorMessage = $"Error occurred: {ex}", Success = false };
             }
         }
-
     }
 }
