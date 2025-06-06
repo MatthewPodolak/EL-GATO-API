@@ -1,10 +1,12 @@
-﻿using ElGato_API.Data;
+﻿using ElGato_API.Controllers;
+using ElGato_API.Data;
 using ElGato_API.Interfaces;
 using ElGato_API.Models.User;
 using ElGato_API.ModelsMongo.Diet;
 using ElGato_API.ModelsMongo.History;
 using ElGato_API.ModelsMongo.Statistics;
 using ElGato_API.VM.UserData;
+using ElGato_API.VMO.Community;
 using ElGato_API.VMO.ErrorResponse;
 using ElGato_API.VMO.User;
 using Microsoft.EntityFrameworkCore;
@@ -936,6 +938,99 @@ namespace ElGato_API.Services
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to add statistics to user statistics doc. UserId: {userId} Model: {model} Method: {nameof(AddToUserStatistics)}");
+                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, Success = false, ErrorMessage = $"An error occured: {ex.Message}" };
+            }
+        }
+
+        public async Task<BasicErrorResponse> UpdateProfileInformation(string userId, UserProfileInformationVM model)
+        {
+            try
+            {
+                var user = await _dbContext.AppUser.FirstOrDefaultAsync(a => a.Id == userId);
+                if(user == null)
+                {
+                    _logger.LogWarning($"User with id not found -> UserId: {userId} Method: {nameof(UpdateProfileInformation)}");
+                    return new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, ErrorMessage = "User with given id not found.", Success = false };
+                }
+
+                if (!string.IsNullOrEmpty(model.NewDesc))
+                {
+                    user.Desc = model.NewDesc;
+                }
+
+                if (!string.IsNullOrEmpty(model.NewName))
+                {
+                    user.Name = model.NewName;
+                }
+
+                if (model.NewImage != null)
+                {
+                    string oldImage = user.Pfp;
+
+                    Random rnd = new Random();
+                    string extension = Path.GetExtension(model.NewImage.FileName);
+                    extension = string.IsNullOrEmpty(extension) ? "jpg" : extension.TrimStart('.');
+                    string newImageName = $"{Guid.NewGuid()}{rnd.Next(1, 1000000)}.{extension}";
+
+                    string folderPath = Path.Combine(Directory.GetCurrentDirectory(), "Assets/Images/UserPfp");
+
+                    Directory.CreateDirectory(folderPath);
+
+                    string fullPath = Path.Combine(folderPath, newImageName);
+
+                    using (var fileStream = new FileStream(fullPath, FileMode.Create))
+                    {
+                        await model.NewImage.CopyToAsync(fileStream);
+                    }
+
+                    if (!string.IsNullOrEmpty(oldImage))
+                    {
+                        try
+                        {
+                            string oldFileName = Path.GetFileName(oldImage);
+                            string oldFullPath = Path.Combine(folderPath, oldFileName);
+
+                            if (File.Exists(oldFullPath))
+                                    File.Delete(oldFullPath);
+                        }
+                        catch (Exception deleteEx)
+                        {
+                            _logger.LogWarning(deleteEx, $"Failed to delete old profile image {oldImage} for user {userId}");
+                        }
+                    }
+
+                    user.Pfp = $"/pfp-images/{newImageName}";
+                }
+
+                await _dbContext.SaveChangesAsync();
+                return new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Profile information updated sucessfully." };
+
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to update profile information for user. UserId: {userId} Method: {nameof(UpdateProfileInformation)}");
+                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, Success = false, ErrorMessage = $"An error occured: {ex.Message}" };
+            }
+        }
+
+        public async Task<BasicErrorResponse> ChangeProfileVisilibity(string userId)
+        {
+            try
+            {
+                var user = await _dbContext.AppUser.FirstOrDefaultAsync(a => a.Id == userId);
+                if (user == null)
+                {
+                    _logger.LogWarning($"User with id not found -> UserId: {userId} Method: {nameof(UpdateProfileInformation)}");
+                    return new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, ErrorMessage = "User with given id not found.", Success = false };
+                }
+
+                user.IsProfilePrivate = !user.IsProfilePrivate;
+                await _dbContext.SaveChangesAsync();
+                return new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Profile visilibity updated sucessfully." };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to chane profile visilibiyu for user. UserId: {userId} Method: {nameof(ChangeProfileVisilibity)}");
                 return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, Success = false, ErrorMessage = $"An error occured: {ex.Message}" };
             }
         }
