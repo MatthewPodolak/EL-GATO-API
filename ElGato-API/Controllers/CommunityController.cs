@@ -133,18 +133,13 @@ namespace ElGato_API.Controllers
         [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status403Forbidden)]
         [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> GetUserFollowers(string userId, bool? onlyFollowed = false)
+        public async Task<IActionResult> GetUserFollowers(string? userId = null, bool? onlyFollowed = false)
         {
             try
             {
                 if (string.IsNullOrEmpty(userId))
                 {
-                    return StatusCode(400, new BasicErrorResponse()
-                    {
-                        ErrorCode = ErrorCodes.ModelStateNotValid,
-                        ErrorMessage = "Provide id of user.",
-                        Success = false
-                    });
+                    userId = _jwtService.GetUserIdClaim();
                 }
 
                 var userExists = await _communityService.UserExists(userId);
@@ -243,6 +238,37 @@ namespace ElGato_API.Controllers
                         ErrorCodes.NotFound => NotFound(res.erro),
                         ErrorCodes.Internal => StatusCode(500, res.erro),
                         _ => BadRequest(res.erro)
+                    };
+                }
+
+                return Ok(res.data);
+            }
+            catch(Exception ex)
+            {
+                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured {ex.Message}", Success = false });
+            }
+        }
+
+        [HttpGet]
+        [Authorize(Policy = "user")]
+        [ProducesResponseType(typeof(FriendsLeaderboardVMO), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> GetFriendsLeaderboards()
+        {
+            try
+            {
+                var userId = _jwtService.GetUserIdClaim();
+
+                var res = await _communityService.GetFriendsLeaderboards(userId);
+                if (!res.error.Success)
+                {
+                    return res.error.ErrorCode switch
+                    {
+                        ErrorCodes.NotFound => NotFound(res.error),
+                        ErrorCodes.Internal => StatusCode(500, res.error),
+                        _ => BadRequest(res.error)
                     };
                 }
 

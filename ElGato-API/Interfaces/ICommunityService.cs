@@ -17,6 +17,7 @@ namespace ElGato_API.Interfaces
         Task<BasicErrorResponse> BlockUser(string userId, string userToBlockId);
         Task<BasicErrorResponse> UnBlockUser(string userId, string userToUnblockId);
         Task<BasicErrorResponse> RespondToFollowRequest(string userId, RespondToFollowVM model);
+        Task<(FriendsLeaderboardVMO data, BasicErrorResponse error)> GetFriendsLeaderboards(string userId);
         Task<(UserFollowersVMO data, BasicErrorResponse error)> GetUserFollowerLists(string userId, bool onlyFollowed);
         Task<(BlockListVMO data, BasicErrorResponse error)> GetUserBlockList(string userId);
         Task<(UserSearchVMO data, BasicErrorResponse error)> SearchForUsers(string userId, string query, int limit = 10);

@@ -7,6 +7,7 @@ using ElGato_API.ModelsMongo.Cardio;
 using ElGato_API.ModelsMongo.History;
 using ElGato_API.ModelsMongo.Statistics;
 using ElGato_API.ModelsMongo.Training;
+using ElGato_API.Services.Helpers;
 using ElGato_API.VM.Community;
 using ElGato_API.VMO.Cardio;
 using ElGato_API.VMO.Community;
@@ -378,6 +379,255 @@ namespace ElGato_API.Services
             {
                 _logger.LogError(ex, $"Failed while trying to respond to user request. UserId: {userId} Method: {nameof(RespondToFollowRequest)}");
                 return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false };
+            }
+        }
+
+        public async Task<(FriendsLeaderboardVMO data, BasicErrorResponse error)> GetFriendsLeaderboards(string userId)
+        {
+            try
+            {
+                var vmo = new FriendsLeaderboardVMO();
+
+                var user = await _context.AppUser.FirstOrDefaultAsync(a=>a.Id == userId);
+                if(user == null)
+                {
+                    _logger.LogWarning($"User with given id: {userId} not found. Method: {nameof(GetFriendsLeaderboards)}");
+                    return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, ErrorMessage = $"User with id: {userId} not found.", Success = false });
+                }
+
+                var followed = await GetUserFollowerLists(userId, true);
+                if (!followed.error.Success)
+                {
+                    _logger.LogWarning($"Couldn't get followed friends for user. {nameof(GetFriendsLeaderboards)}");
+                    return (vmo, followed.error);
+                }
+
+                var idsToProcess = followed.data.Followed.Select(f => f.UserId).Distinct().ToList();
+
+                if (!idsToProcess.Contains(userId))
+                    idsToProcess.Add(userId);
+
+                var metricTasks = idsToProcess.Select(id => GetFriendsLeaderboardMetricForUser(id, id == userId)).ToList();
+                var metricResults = await Task.WhenAll(metricTasks);
+
+                var firstError = metricResults.FirstOrDefault(r => !r.error.Success).error;
+
+                if (firstError != null)
+                    return (vmo, firstError);
+
+                foreach (var type in Enum.GetValues<LeaderboardType>().Cast<LeaderboardType>())
+                {
+                    var combined = new Leaderboard { Type = type };
+
+                    foreach (var (data, _) in metricResults)
+                    {
+                        var userLb = data.FirstOrDefault(l => l.Type == type);
+                        if (userLb == null)
+                            continue;
+
+                        combined.All.AddRange(userLb.All);
+                        combined.Year.AddRange(userLb.Year);
+                        combined.Month.AddRange(userLb.Month);
+                        combined.Week.AddRange(userLb.Week);
+                    }
+
+                    Action<List<LeaderboardRecord>> sortAndRank = list =>
+                    {
+                        IEnumerable<LeaderboardRecord> sorted;
+
+                        if (type == LeaderboardType.Running || type == LeaderboardType.Swimming)
+                        {
+                            sorted = list
+                                .Where(r => r.CardioSpecific != null)
+                                .OrderByDescending(r => r.CardioSpecific!.SpeedKmh)
+                                .ThenByDescending(r => r.CardioSpecific!.DistanceKm)
+                                .ThenBy(r => r.CardioSpecific!.Time);
+                        }
+                        else
+                        {
+                            sorted = list.OrderByDescending(r => r.Value);
+                        }
+
+                        var ranked = sorted
+                            .Select((record, idx) =>
+                            {
+                                record.LeaderboardPosition = idx + 1;
+                                return record;
+                            }).ToList();
+
+                        list.Clear();
+                        list.AddRange(ranked);
+                    };
+
+                    sortAndRank(combined.All);
+                    sortAndRank(combined.Year);
+                    sortAndRank(combined.Month);
+                    sortAndRank(combined.Week);
+
+                    vmo.Leaderboards.Add(combined);
+                }
+
+                return (vmo, new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess" });
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to get friends leaderboards UserId: {userId} Method: {nameof(GetFriendsLeaderboards)}");
+                return (new FriendsLeaderboardVMO(), new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false });
+            }
+        }
+
+        private async Task<(List<Leaderboard> data, BasicErrorResponse error)> GetFriendsLeaderboardMetricForUser(string userId, bool isOwn = false)
+        {
+            try
+            {
+                using var ctx = _contextFactory.CreateDbContext();
+
+                var vmo = new List<Leaderboard>
+                {
+                    new Leaderboard { Type = LeaderboardType.Calories },
+                    new Leaderboard { Type = LeaderboardType.Steps    },
+                    new Leaderboard { Type = LeaderboardType.Activity },
+                    new Leaderboard { Type = LeaderboardType.Running  },
+                    new Leaderboard { Type = LeaderboardType.Swimming },
+                };
+
+                var user = await ctx.AppUser.Where(a => a.Id == userId).Select(a => new { a.Name, Pfp = a.Pfp }).FirstOrDefaultAsync();
+                if (user == null)
+                {
+                    _logger.LogWarning($"User with given id not found. UserId: {userId} Method: {nameof(GetFriendsLeaderboardMetricForUser)}");
+                    return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, Success = false, ErrorMessage = "User with given id not found." });
+                }
+
+                var userData = new LeaderboardUserData { Name = user.Name ?? "user", Pfp = user.Pfp ?? String.Empty };
+
+                var statsDoc = await _userStatisticsDocument.Find(s => s.UserId == userId) .FirstOrDefaultAsync();
+                var dailyDoc = await _cardioDocument.Find(d => d.UserId == userId).FirstOrDefaultAsync();
+                var historyDoc = await _cardioHistoryDocument.Find(h => h.UserId == userId).FirstOrDefaultAsync();
+
+                var now = DateTime.UtcNow;
+                var yearAgo = now.AddYears(-1);
+                var monthAgo = now.AddMonths(-1);
+                var weekAgo = now.AddDays(-7);
+
+                double SumStats(StatisticType type, DateTime since)
+                    => statsDoc?.UserStatisticGroups
+                                .FirstOrDefault(g => g.Type == type)?
+                                .Records
+                                .Where(r => r.Date >= since)
+                                .Sum(r => r.Value) ?? 0;
+
+                var metricMap = new[]
+                {
+                    (
+                        Type:     LeaderboardType.Calories,
+                        AllTime:  statsDoc?.TotalCaloriesCounter ?? 0,
+                        StatType: StatisticType.CaloriesBurnt
+                    ),
+                    (
+                        Type:     LeaderboardType.Steps,
+                        AllTime:  statsDoc?.TotalStepsCounter ?? 0,
+                        StatType: StatisticType.StepsTaken
+                    ),
+                    (
+                        Type:     LeaderboardType.Activity,
+                        AllTime:  statsDoc?.TotalSessionsCounter ?? 0,
+                        StatType: StatisticType.ActvSessionsCount
+                    )
+                };
+
+                foreach (var (Type, AllTime, StatType) in metricMap)
+                {
+                    var lb = vmo.First(l => l.Type == Type);
+
+                    lb.All.Add(new LeaderboardRecord { UserData = userData, Value = AllTime });
+                    lb.Year.Add(new LeaderboardRecord { UserData = userData, Value = SumStats(StatType, yearAgo) });
+                    lb.Month.Add(new LeaderboardRecord { UserData = userData, Value = SumStats(StatType, monthAgo) });
+                    lb.Week.Add(new LeaderboardRecord { UserData = userData, Value = SumStats(StatType, weekAgo) });
+                }
+
+                var cardioSessions = new List<(LeaderboardType Type, DateTime Date, TimeSpan Duration, double DistanceKm, double SpeedKmh)>();
+
+                if (dailyDoc != null)
+                {
+                    foreach (var day in dailyDoc.Trainings)
+                    {
+                        foreach (var ex in day.Exercises
+                                              .Where(ex =>
+                                                  ex.ExerciseVisilibity == ExerciseVisilibity.Public &&
+                                                  (ex.ActivityType == ActivityType.Running ||
+                                                   ex.ActivityType == ActivityType.Swimming)))
+                        {
+                            cardioSessions.Add((
+                                Type: ex.ActivityType == ActivityType.Running ? LeaderboardType.Running : LeaderboardType.Swimming,
+                                Date: day.Date,
+                                Duration: ex.Duration,
+                                DistanceKm: ex.DistanceMeters / 1000,
+                                SpeedKmh: ex.SpeedKmH
+                            ));
+                        }
+                    }
+                }
+
+                if (historyDoc != null)
+                {
+                    foreach (var group in historyDoc.Exercises)
+                    {
+                        if (group.ActivityType != ActivityType.Running &&
+                            group.ActivityType != ActivityType.Swimming)
+                            continue;
+
+                        foreach (var data in group.ExercisesData)
+                        {
+                            cardioSessions.Add((
+                                Type: group.ActivityType == ActivityType.Running ? LeaderboardType.Running : LeaderboardType.Swimming,
+                                Date: data.Date,
+                                Duration: data.Duration,
+                                DistanceKm: data.DistanceMeters / 1000,
+                                SpeedKmh: data.SpeedKmH
+                            ));
+                        }
+                    }
+                }
+
+                foreach (var cardioType in new[] { LeaderboardType.Running, LeaderboardType.Swimming })
+                {
+                    var lb = vmo.First(l => l.Type == cardioType);
+
+                    LeaderboardRecord? BestIn(DateTime? since)
+                    {
+                        var candidates = cardioSessions.Where(s => s.Type == cardioType &&(!since.HasValue || s.Date >= since.Value));
+
+                        var best = candidates.OrderByDescending(s => s.SpeedKmh).FirstOrDefault();
+
+                        if (best == default) return null;
+
+                        return new LeaderboardRecord
+                        {
+                            UserData = userData,
+                            Value = best.SpeedKmh,
+                            CardioSpecific = new LeaderboardCardioData
+                            {
+                                SpeedKmh = best.SpeedKmh,
+                                DistanceKm = best.DistanceKm,
+                                Time = best.Duration,
+                                ExerciseDate = best.Date
+                            }
+                        };
+                    }
+
+                    BestIn(null)?.Let(r => lb.All.Add(r));
+                    BestIn(yearAgo)?.Let(r => lb.Year.Add(r));
+                    BestIn(monthAgo)?.Let(r => lb.Month.Add(r));
+                    BestIn(weekAgo)?.Let(r => lb.Week.Add(r));
+                }
+
+                return (vmo, new BasicErrorResponse { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess" });
+
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to get leaderboard metrics data for user. UserId: {userId} Method: {nameof(GetFriendsLeaderboardMetricForUser)}");
+                return (new List<Leaderboard>(), new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false });
             }
         }
 
@@ -1060,6 +1310,5 @@ namespace ElGato_API.Services
                 return (new FollowersRequestVMO(), new BasicErrorResponse() { Success = false, ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}" });
             }
         }
-
     }
 }
