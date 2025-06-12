@@ -92,7 +92,7 @@ namespace ElGato_API.Services
             try
             {
                 using var context = _contextFactory.CreateDbContext();
-                return await context.UserFollower.AnyAsync(f => f.FolloweeId == userId && f.FollowerId == checkingUserId);
+                return await context.UserFollower.AnyAsync(f => f.FolloweeId == checkingUserId && f.FollowerId == userId);
             }
             catch(Exception ex)
             {
@@ -491,14 +491,14 @@ namespace ElGato_API.Services
                     new Leaderboard { Type = LeaderboardType.Swimming },
                 };
 
-                var user = await ctx.AppUser.Where(a => a.Id == userId).Select(a => new { a.Name, Pfp = a.Pfp }).FirstOrDefaultAsync();
+                var user = await ctx.AppUser.Where(a => a.Id == userId).Select(a => new { a.Name, Pfp = a.Pfp, a.Id }).FirstOrDefaultAsync();
                 if (user == null)
                 {
                     _logger.LogWarning($"User with given id not found. UserId: {userId} Method: {nameof(GetFriendsLeaderboardMetricForUser)}");
                     return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, Success = false, ErrorMessage = "User with given id not found." });
                 }
 
-                var userData = new LeaderboardUserData { Name = user.Name ?? "user", Pfp = user.Pfp ?? String.Empty };
+                var userData = new LeaderboardUserData { Name = user.Name ?? "user", Pfp = user.Pfp ?? String.Empty, UserId = user.Id ?? String.Empty };
 
                 var statsDoc = await _userStatisticsDocument.Find(s => s.UserId == userId) .FirstOrDefaultAsync();
                 var dailyDoc = await _cardioDocument.Find(d => d.UserId == userId).FirstOrDefaultAsync();
@@ -795,9 +795,23 @@ namespace ElGato_API.Services
                 var vmo = new UserProfileDataVMO();
 
                 bool isFollowed = false;
+                bool isRequested = false;
+                bool isOwn = false;
+
+                if(userId == askingUserId)
+                {
+                    isOwn = true;
+                }
+
                 if(userId != askingUserId)
                 {
                     isFollowed = await CheckIfUserFollowUser(askingUserId, userId);
+                }
+
+                if(userId != askingUserId && !isFollowed)
+                {
+                    var existingRequest = await _context.UserFollowerRequest.FirstOrDefaultAsync(a => a.RequesterId == askingUserId && a.TargetId == userId);
+                    isRequested = (existingRequest != null);
                 }
 
                 var generalUserProfileData = await GetGeneralProfileData(userId);
@@ -808,6 +822,9 @@ namespace ElGato_API.Services
 
                 vmo.GeneralProfileData = generalUserProfileData.data;
                 vmo.GeneralProfileData.IsFollowed = isFollowed;
+                vmo.GeneralProfileData.IsRequested = isRequested;
+                vmo.GeneralProfileData.IsOwn = isOwn;
+
                 if (!full)
                 {
                     return (vmo, new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess" });

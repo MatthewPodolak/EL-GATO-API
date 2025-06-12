@@ -20,6 +20,8 @@ namespace ElGato_API.VMO.Community
         public int FollowersCounter { get; set; }
         public bool IsFollowed { get; set; }
         public bool IsPrivate { get; set; }
+        public bool IsRequested { get; set; }
+        public bool IsOwn { get; set; } = false;
     }
 
     public class PrivateProfileInformation
