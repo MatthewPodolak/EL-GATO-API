@@ -358,6 +358,33 @@ namespace ElGato_API.Services
             }
         }
 
+        public async Task<BasicErrorResponse> RemoveFollowRequest(string userId, string userIdToRemoveRequestFrom)
+        {
+            try
+            {
+                var request = await _context.UserFollowerRequest.FirstOrDefaultAsync(a => a.RequesterId == userId && a.TargetId == userIdToRemoveRequestFrom);
+                if (request == null)
+                {
+                    return new BasicErrorResponse()
+                    {
+                        ErrorCode = ErrorCodes.NotFound,
+                        ErrorMessage = "Follow request for user does not exists.",
+                        Success = false
+                    };
+                }
+
+                _context.UserFollowerRequest.Remove(request);
+                await _context.SaveChangesAsync();
+
+                return new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess" };
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to remove follow request. UserId: {userId} From: {userIdToRemoveRequestFrom} Method: {nameof(RemoveFollowRequest)}");
+                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, Success = false, ErrorMessage = $"An error occured: {ex.Message}" };
+            }
+        }
+
         public async Task<BasicErrorResponse> RespondToFollowRequest(string userId, RespondToFollowVM model)
         {
             try
