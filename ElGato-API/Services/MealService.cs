@@ -17,13 +17,14 @@ namespace ElGato_API.Services
     {
         private readonly IMongoCollection<MealsDocument> _mealsCollection;
         private readonly IDbContextFactory<AppDbContext> _contextFactory;
+        private readonly AppDbContext _context;
         private readonly IMongoCollection<MealLikesDocument> _mealLikesCollection;
         private readonly IMongoCollection<OwnMealsDocument> _ownMealCollection;
         private readonly IAchievmentService _achievmentService;
         private readonly IHelperService _helperService;
         private readonly ILogger<MealService> _logger;
 
-        public MealService(IMongoDatabase database, IDbContextFactory<AppDbContext> contextFactory, IAchievmentService achievmentService, ILogger<MealService> logger, IHelperService helperService)
+        public MealService(IMongoDatabase database, IDbContextFactory<AppDbContext> contextFactory, IAchievmentService achievmentService, ILogger<MealService> logger, IHelperService helperService, AppDbContext context)
         {
             _mealsCollection = database.GetCollection<MealsDocument>("MealsDoc");
             _mealLikesCollection = database.GetCollection<MealLikesDocument>("MealsLikeDoc");
@@ -32,6 +33,7 @@ namespace ElGato_API.Services
             _achievmentService = achievmentService;
             _logger = logger;
             _helperService = helperService;
+            _context = context;
         }
 
         public async Task<(List<SimpleMealVMO> res, BasicErrorResponse error)> GetByMainCategory(string userId, List<string> LikedMeals, List<string> SavedMeals, string? category, int? qty = 5, int? pageNumber = 1)
@@ -1069,6 +1071,60 @@ namespace ElGato_API.Services
             {
                 _logger.LogError(ex, $"Failed while trying to delete meal. UserId: {userId} MealId: {mealId} Method: {nameof(DeleteMeal)}");
                 return new BasicErrorResponse() { Success = false, ErrorMessage = ex.Message, ErrorCode = ErrorCodes.Internal };
+            }
+        }
+
+        public async Task<(List<SimpleMealVMO> data, BasicErrorResponse error)> GetUserRecipes(string userId, int count, int skip, List<string> LikedMeals, List<string> SavedMeals)
+        {
+            try
+            {
+                var vmo = new List<SimpleMealVMO>();
+
+                var user = await _context.AppUser.Where(a=>a.Id == userId).ToDictionaryAsync(user => user.Id, user => new { user.Name, user.Pfp });
+                if(user == null)
+                {
+                    _logger.LogWarning($"Tried to acess non-existing user. UserId: {userId} Method: {nameof(GetUserRecipes)}");
+                    return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, Success = false, ErrorMessage = "User does not exists." });
+                }
+
+                var ownMealDosc = await _ownMealCollection.Find(r => r.UserId == userId).FirstOrDefaultAsync();
+                if (ownMealDosc == null)
+                {
+                    return (vmo, new BasicErrorResponse() { Success = true, ErrorMessage = "Sucess, empty.", ErrorCode = ErrorCodes.None });
+                }
+
+                var paginatedMeals = await _mealsCollection.Find(a => ownMealDosc.OwnMealsId.Contains(a.Id.ToString())).Skip(skip).Limit(count).ToListAsync();
+                vmo = paginatedMeals.Select(meal => new SimpleMealVMO
+                {
+                    Id = meal.Id,
+                    StringId = meal.Id.ToString(),
+                    Name = meal.Name ?? "xdddd",
+                    Time = meal.Time,
+                    Img = meal.Img,
+                    Kcal = meal.MealsMakro.Kcal,
+                    Desc = meal.Description,
+                    Ingredients = meal.Ingridients ?? new List<string>(),
+                    Steps = meal.Steps ?? new List<string>(),
+                    Difficulty = meal.Difficulty ?? "Easy",
+                    Protein = meal.MealsMakro.Protein,
+                    Fats = meal.MealsMakro.Fats,
+                    Carbs = meal.MealsMakro.Carbs,
+                    Servings = meal.MealsMakro.Servings ?? 0,
+                    SavedCounter = meal.SavedCounter,
+                    LikedCounter = meal.LikedCounter,
+                    CreatorName = user.ContainsKey(meal.UserId) ? user[meal.UserId].Name : "Unknown",
+                    CreatorPfp = user.ContainsKey(meal.UserId) ? user[meal.UserId].Pfp : "/pfp-images/e2f56642-a493-4c6d-924b-d3072714646a.png",
+                    Liked = LikedMeals.Contains(meal.Id.ToString()),
+                    Saved = SavedMeals.Contains(meal.Id.ToString()),
+                    Own = meal.UserId == userId
+                }).ToList();
+
+                return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" });
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to get user recipes. UserId: {userId} Method: {nameof(GetUserRecipes)}");
+                return (new List<SimpleMealVMO>(), new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, Success = false, ErrorMessage = $"An error occured: {ex.Message}"});
             }
         }
 

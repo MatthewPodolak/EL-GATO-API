@@ -22,13 +22,10 @@ namespace ElGato_API.Interfaces
 
         Task<(BasicErrorResponse error, List<SimpleMealVMO> res)> GetUserLikedMeals(string userId);
         Task<(BasicErrorResponse error, List<SimpleMealVMO> res)> GetUserSavedMeals(string userId);
-
         Task<(BasicErrorResponse error, List<SimpleMealVMO> res)> Search(string userId, SearchMealVM model);
-
         Task<(BasicErrorResponse error, AchievmentResponse? ach)> ProcessAndPublishMeal(string userId, PublishMealVM model);
-
         Task<(BasicErrorResponse error, List<SimpleMealVMO>? res)> GetOwnMeals(string userId, List<string> LikedMeals, List<string> SavedMeals);
-
         Task<BasicErrorResponse> DeleteMeal(string userId, ObjectId mealId);
+        Task<(List<SimpleMealVMO> data, BasicErrorResponse error)> GetUserRecipes(string userId, int count, int skip, List<string> LikedMeals, List<string> SavedMeals);
     }
 }

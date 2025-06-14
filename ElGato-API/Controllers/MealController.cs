@@ -250,6 +250,94 @@ namespace ElGato_API.Controllers
             }
         }
 
+        [HttpGet]
+        [Authorize(Policy = "user")]
+        [ProducesResponseType(typeof(List<SimpleMealVMO>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> GetOwnRecipes()
+        {
+            try
+            {
+                List<string> UserLikes = new List<string>();
+                List<string> UserSaves = new List<string>();
+
+                string userId = _jwtService.GetUserIdClaim();
+                var userLikesDoc = await _mealService.GetUserMealLikeDoc(userId);
+
+                if (userLikesDoc.error.Success)
+                {
+                    UserLikes = userLikesDoc.res.LikedMeals;
+                    UserSaves = userLikesDoc.res.SavedMeals;
+                }
+
+                var res = await _mealService.GetOwnMeals(userId, UserLikes, UserSaves);
+                if (!res.error.Success)
+                {
+                    return res.error.ErrorCode switch
+                    {
+                        ErrorCodes.Internal => StatusCode(500, res.error),
+                        _ => BadRequest(res.error)
+                    };
+                }
+
+                return Ok(res.res);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new BasicErrorResponse() { ErrorMessage = $"Internal server error. {ex.Message}", ErrorCode = ErrorCodes.Internal });
+            }
+        }
+
+        [HttpGet]
+        [Authorize(Policy = "user")]
+        [ProducesResponseType(typeof(List<SimpleMealVMO>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> GetUserRecipes(string? userId = null, int count = 10, int skip = 0)
+        {
+            try
+            {
+                var askingUserId = _jwtService.GetUserIdClaim();
+                if (String.IsNullOrEmpty(userId))
+                {
+                    userId = askingUserId;
+                }
+
+                List<string> userLikes = new List<string>();
+                List<string> userSaves = new List<string>();
+
+                var userLikesDoc = await _mealService.GetUserMealLikeDoc(userId);
+                if (!userLikesDoc.error.Success)
+                {
+                    return StatusCode(400, userLikesDoc.error);
+                }
+
+                userLikes = userLikesDoc.res.LikedMeals;
+                userSaves = userLikesDoc.res.SavedMeals;
+
+                var res = await _mealService.GetUserRecipes(userId, count, skip, userLikes, userSaves);
+                if (!res.error.Success)
+                {
+                    return res.error.ErrorCode switch
+                    {
+                        ErrorCodes.Internal => StatusCode(500, res.error),
+                        ErrorCodes.Forbidden => StatusCode(403, res.error),
+                        ErrorCodes.NotFound => NotFound(res.error),
+                        _ => BadRequest(res.error)
+                    };
+                }
+
+                return Ok(res.data);
+            }
+            catch(Exception ex)
+            {
+                return StatusCode(500, new BasicErrorResponse() { ErrorMessage = $"Internal server error. {ex.Message}", ErrorCode = ErrorCodes.Internal });
+            }
+        }
+
         [HttpPost]
         [Authorize(Policy = "user")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -389,45 +477,6 @@ namespace ElGato_API.Controllers
                 return Ok(new AchievmentResponse() { Status = new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" } });
             }
             catch (Exception ex)
-            {
-                return StatusCode(500, new BasicErrorResponse() { ErrorMessage = $"Internal server error. {ex.Message}", ErrorCode = ErrorCodes.Internal });
-            }
-        }
-
-        [HttpGet]
-        [Authorize(Policy = "user")]
-        [ProducesResponseType(typeof(List<SimpleMealVMO>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> GetOwnRecipes()
-        {
-            try
-            {
-                List<string> UserLikes = new List<string>();
-                List<string> UserSaves = new List<string>();
-
-                string userId = _jwtService.GetUserIdClaim();
-                var userLikesDoc = await _mealService.GetUserMealLikeDoc(userId);
-
-                if (userLikesDoc.error.Success)
-                {
-                    UserLikes = userLikesDoc.res.LikedMeals;
-                    UserSaves = userLikesDoc.res.SavedMeals;
-                }
-
-                var res = await _mealService.GetOwnMeals(userId, UserLikes, UserSaves);
-                if (!res.error.Success) 
-                {
-                    return res.error.ErrorCode switch
-                    {
-                        ErrorCodes.Internal => StatusCode(500, res.error),
-                        _ => BadRequest(res.error)
-                    };
-                }
-
-                return Ok(res.res);
-            }
-            catch(Exception ex)
             {
                 return StatusCode(500, new BasicErrorResponse() { ErrorMessage = $"Internal server error. {ex.Message}", ErrorCode = ErrorCodes.Internal });
             }

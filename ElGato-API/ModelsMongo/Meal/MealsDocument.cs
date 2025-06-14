@@ -24,7 +24,6 @@ namespace ElGato_API.ModelsMongo.Meal
         public MealsMakro MealsMakro { get; set; }
         public int SavedCounter { get; set; } = 0;
         public int LikedCounter { get; set; } = 0;
-
     }
 
     public class MealsMakro

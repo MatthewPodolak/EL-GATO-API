@@ -30,6 +30,7 @@ namespace ElGato_API.VMO.Community
         public List<RecentCardioActivity> RecentCardioActivities { get; set; } = new List<RecentCardioActivity>();
         public List<LiftData> RecentLiftActivities { get; set; }
         public List<BestLiftData> BestLifts { get; set; }
+        public List<RecipesData> UserRecipes { get; set; } = new List<RecipesData>();
         public Statistics Statistics { get; set; } = new Statistics();
         public CardioTrainingStatistics CardioStatistics { get; set; } = new CardioTrainingStatistics();
     }
@@ -79,6 +80,11 @@ namespace ElGato_API.VMO.Community
         public double WeightKg { get; set; }
         public double WeightLbs => WeightKg * 2.20462;
         public int Repetitions {  get; set; }
+    }
+
+    public class RecipesData
+    {
+
     }
 
     public class Statistics
