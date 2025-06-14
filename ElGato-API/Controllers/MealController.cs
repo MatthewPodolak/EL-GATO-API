@@ -310,13 +310,11 @@ namespace ElGato_API.Controllers
                 List<string> userSaves = new List<string>();
 
                 var userLikesDoc = await _mealService.GetUserMealLikeDoc(userId);
-                if (!userLikesDoc.error.Success)
+                if (userLikesDoc.error.Success)
                 {
-                    return StatusCode(400, userLikesDoc.error);
+                    userLikes = userLikesDoc.res.LikedMeals;
+                    userSaves = userLikesDoc.res.SavedMeals;
                 }
-
-                userLikes = userLikesDoc.res.LikedMeals;
-                userSaves = userLikesDoc.res.SavedMeals;
 
                 var res = await _mealService.GetUserRecipes(userId, count, skip, userLikes, userSaves);
                 if (!res.error.Success)

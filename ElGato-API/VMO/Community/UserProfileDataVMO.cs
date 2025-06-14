@@ -28,6 +28,7 @@ namespace ElGato_API.VMO.Community
     {
         public List<EarnedBadges> EarnedBadges { get; set; } = new List<EarnedBadges>();
         public List<RecentCardioActivity> RecentCardioActivities { get; set; } = new List<RecentCardioActivity>();
+        public List<RecentCardioActivity> BestCardioActivities { get; set; } = new List<RecentCardioActivity>();
         public List<LiftData> RecentLiftActivities { get; set; }
         public List<BestLiftData> BestLifts { get; set; }
         public List<RecipesData> UserRecipes { get; set; } = new List<RecipesData>();
@@ -59,6 +60,8 @@ namespace ElGato_API.VMO.Community
         public string? Route { get; set; }
         public int CaloriesBurnt { get; set; }
         public int FeelingPercentage { get; set; }
+        public List<SpeedInTime>? SpeedInTime { get; set; } = new List<SpeedInTime>();
+        public List<HeartRateInTime>? HeartRateInTime { get; set; } = new List<HeartRateInTime>();
 
         [JsonConverter(typeof(JsonStringEnumConverter))]
         public ActivityType ActivityType { get; set; } = ActivityType.Workout;

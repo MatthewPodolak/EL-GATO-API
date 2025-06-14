@@ -860,6 +860,7 @@ namespace ElGato_API.Services
 
                 var earnedBadgesTask = GetUserEarnedBadges(userId);
                 var recentCardioTask = GetUserRecentCardioActivity(userId);
+                var bestCardioTask = GetUserBestCardioActivities(userId);
                 var recentLiftsTask = GetUserRecentLiftActivities(userId);
                 var bestLiftsTask = GetUserBestLifts(userId);
                 var statisticsTask = GetUserStatistics(userId);
@@ -869,6 +870,7 @@ namespace ElGato_API.Services
 
                 if (!earnedBadgesTask.Result.error.Success) return (vmo, earnedBadgesTask.Result.error);
                 if (!recentCardioTask.Result.error.Success) return (vmo, recentCardioTask.Result.error);
+                if(!bestCardioTask.Result.error.Success) return (vmo,  bestCardioTask.Result.error);
                 if (!recentLiftsTask.Result.error.Success) return (vmo, recentLiftsTask.Result.error);
                 if (!bestLiftsTask.Result.error.Success) return (vmo, bestLiftsTask.Result.error);
                 if (!statisticsTask.Result.error.Success) return (vmo, statisticsTask.Result.error);
@@ -878,6 +880,7 @@ namespace ElGato_API.Services
                 {
                     EarnedBadges = earnedBadgesTask.Result.data,
                     RecentCardioActivities = recentCardioTask.Result.data,
+                    BestCardioActivities = bestCardioTask.Result.data,
                     RecentLiftActivities = recentLiftsTask.Result.data,
                     BestLifts = bestLiftsTask.Result.data,
                     Statistics = statisticsTask.Result.data,
@@ -990,7 +993,6 @@ namespace ElGato_API.Services
             try
             {
                 var vmo = new List<RecentCardioActivity>();
-                using var context = _contextFactory.CreateDbContext();
 
                 var userCardioDoc = await _cardioDocument.Find(a => a.UserId == userId).FirstOrDefaultAsync();
                 if (userCardioDoc != null)
@@ -1017,6 +1019,8 @@ namespace ElGato_API.Services
                                 ExerciseFeeling = session.ExerciseFeeling,
                                 Route = session.Route,
                                 ActivityType = session.ActivityType,
+                                HeartRateInTime = session.HeartRateInTime ?? new List<HeartRateInTime>(),
+                                SpeedInTime = session.SpeedInTime ?? new List<SpeedInTime>(),
                             });
 
                             limit--;
@@ -1048,6 +1052,8 @@ namespace ElGato_API.Services
                                 ExerciseFeeling = item.Exercise.ExerciseFeeling,
                                 Route = item.Exercise.Route,
                                 ActivityType = item.Exercise.ActivityType,
+                                HeartRateInTime = item.Exercise.HeartRateInTime ?? new List<HeartRateInTime>(),
+                                SpeedInTime = item.Exercise.SpeedInTime ?? new List<SpeedInTime>(),
                             });
                         }
 
@@ -1060,6 +1066,77 @@ namespace ElGato_API.Services
             {
                 _logger.LogError(ex, $"Failed while trying to get recent cardio activity for user. UserId: {userId} Method: {nameof(GetUserRecentCardioActivity)}");
                 return (new List<RecentCardioActivity>(), new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false});
+            }
+        }
+
+        private async Task<(List<RecentCardioActivity> data, BasicErrorResponse error)> GetUserBestCardioActivities(string userId)
+        {
+            try
+            {
+                var bestActivities = new Dictionary<ActivityType, (DateTime Date, CardioTraining Training, double Score)>();
+
+                var userCardioDoc = await _cardioDocument.Find(a => a.UserId == userId).FirstOrDefaultAsync();
+                if (userCardioDoc != null)
+                {
+                    foreach (var training in userCardioDoc.Trainings)
+                    {
+                        foreach (var exercise in training.Exercises)
+                        {
+                            if (exercise.ExerciseVisilibity != ExerciseVisilibity.Public)
+                                continue;
+
+                            double score = (exercise.DistanceMeters * 0.5) + (exercise.SpeedKmH * 10) + (exercise.Duration.TotalMinutes * 1.5);
+
+                            if (!bestActivities.TryGetValue(exercise.ActivityType, out var currentBest) || score > currentBest.Score)
+                            {
+                                bestActivities[exercise.ActivityType] = (training.Date, exercise, score);
+                            }
+                        }
+                    }
+                }
+
+                var userCardioHistoryDoc = await _cardioDailyHistoryDocument.Find(a => a.UserId == userId).FirstOrDefaultAsync();
+                if (userCardioHistoryDoc != null)
+                {
+                    foreach (var training in userCardioHistoryDoc.Trainings)
+                    {
+                        var ex = training.CardioTraining;
+                        if (ex.ExerciseVisilibity != ExerciseVisilibity.Public)
+                            continue;
+
+                        double score = (ex.DistanceMeters * 0.5) + (ex.SpeedKmH * 10) + (ex.Duration.TotalMinutes * 1.5);
+
+                        if (!bestActivities.TryGetValue(ex.ActivityType, out var currentBest) || score > currentBest.Score)
+                        {
+                            bestActivities[ex.ActivityType] = (training.Date, ex, score);
+                        }
+                    }
+                }
+
+                var vmo = bestActivities.Values.Select(item => new RecentCardioActivity
+                {
+                    Date = item.Date,
+                    Name = item.Training.Name,
+                    Desc = item.Training.Desc,
+                    Duration = item.Training.Duration,
+                    DistanceMeters = item.Training.DistanceMeters,
+                    SpeedKmH = item.Training.SpeedKmH,
+                    AvgHeartRate = item.Training.AvgHeartRate,
+                    CaloriesBurnt = item.Training.CaloriesBurnt,
+                    FeelingPercentage = item.Training.FeelingPercentage,
+                    ExerciseFeeling = item.Training.ExerciseFeeling,
+                    Route = item.Training.Route,
+                    ActivityType = item.Training.ActivityType,
+                    HeartRateInTime = item.Training.HeartRateInTime ?? new List<HeartRateInTime>(),
+                    SpeedInTime = item.Training.SpeedInTime ?? new List<SpeedInTime>(),
+                }).ToList();
+
+                return (vmo, new BasicErrorResponse { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Success" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to get best cardio activity for user. UserId: {userId} Method: {nameof(GetUserBestCardioActivities)}");
+                return (new List<RecentCardioActivity>(), new BasicErrorResponse { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occurred: {ex.Message}", Success = false });
             }
         }
 
