@@ -10,6 +10,7 @@ Assets/Images/Achievments/
 
 # Ignore PFP's
 Assets/Images/UserPfp/
+**/Assets/Images/UserPfp/
 
 # Ignore Exercises
 Assets/Images/Exercises/
