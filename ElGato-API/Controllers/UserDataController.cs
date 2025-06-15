@@ -433,11 +433,11 @@ namespace ElGato_API.Controllers
 
         [HttpPatch]
         [Authorize(Policy = "user")]
-        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> UpdateProfileInformation([FromBody] UserProfileInformationVM model)
+        public async Task<IActionResult> UpdateProfileInformation([FromForm] UserProfileInformationVM model)
         {
             try
             {
@@ -449,17 +449,17 @@ namespace ElGato_API.Controllers
                 var userId = _jwtService.GetUserIdClaim();
 
                 var res = await _userService.UpdateProfileInformation(userId, model);
-                if (!res.Success)
+                if (!res.error.Success)
                 {
-                    return res.ErrorCode switch
+                    return res.error.ErrorCode switch
                     {
-                        ErrorCodes.NotFound => NotFound(res),
-                        ErrorCodes.Internal => StatusCode(500, res),
-                        _ => BadRequest(res)
+                        ErrorCodes.NotFound => NotFound(res.error),
+                        ErrorCodes.Internal => StatusCode(500, res.error),
+                        _ => BadRequest(res.error)
                     };
                 }
 
-                return Ok();
+                return Ok(res.newPfpUrl);
             }
             catch (Exception ex)
             {

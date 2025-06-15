@@ -13,6 +13,7 @@ namespace ElGato_API.VMO.Community
 
     public class GeneralProfileData
     {
+        public string UserId { get; set; }
         public string Name { get; set; }
         public string Desc { get; set; }
         public string Pfp { get; set; }

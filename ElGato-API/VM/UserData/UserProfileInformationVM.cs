@@ -4,6 +4,7 @@
     {
         public string? NewName { get; set; }
         public string? NewDesc { get; set; }
+        public bool? IsVisible { get; set; }
         public IFormFile? NewImage { get; set; }
     }
 }

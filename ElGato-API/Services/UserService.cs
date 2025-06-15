@@ -1,6 +1,7 @@
 ﻿using ElGato_API.Controllers;
 using ElGato_API.Data;
 using ElGato_API.Interfaces;
+using ElGato_API.Migrations;
 using ElGato_API.Models.User;
 using ElGato_API.ModelsMongo.Diet;
 using ElGato_API.ModelsMongo.History;
@@ -942,7 +943,7 @@ namespace ElGato_API.Services
             }
         }
 
-        public async Task<BasicErrorResponse> UpdateProfileInformation(string userId, UserProfileInformationVM model)
+        public async Task<(BasicErrorResponse error, string? newPfpUrl)> UpdateProfileInformation(string userId, UserProfileInformationVM model)
         {
             try
             {
@@ -950,7 +951,7 @@ namespace ElGato_API.Services
                 if(user == null)
                 {
                     _logger.LogWarning($"User with id not found -> UserId: {userId} Method: {nameof(UpdateProfileInformation)}");
-                    return new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, ErrorMessage = "User with given id not found.", Success = false };
+                    return (new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, ErrorMessage = "User with given id not found.", Success = false }, null);
                 }
 
                 if (!string.IsNullOrEmpty(model.NewDesc))
@@ -961,6 +962,11 @@ namespace ElGato_API.Services
                 if (!string.IsNullOrEmpty(model.NewName))
                 {
                     user.Name = model.NewName;
+                }
+
+                if (model.IsVisible != null)
+                {
+                    user.IsProfilePrivate = (bool)model.IsVisible;
                 }
 
                 if (model.NewImage != null)
@@ -1003,13 +1009,13 @@ namespace ElGato_API.Services
                 }
 
                 await _dbContext.SaveChangesAsync();
-                return new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Profile information updated sucessfully." };
+                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Profile information updated sucessfully." }, user.Pfp);
 
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to update profile information for user. UserId: {userId} Method: {nameof(UpdateProfileInformation)}");
-                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, Success = false, ErrorMessage = $"An error occured: {ex.Message}" };
+                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, Success = false, ErrorMessage = $"An error occured: {ex.Message}" }, null);
             }
         }
 

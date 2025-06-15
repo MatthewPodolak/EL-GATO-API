@@ -21,7 +21,7 @@ namespace ElGato_API.Interfaces
         Task<(BasicErrorResponse error, DailyMakroDistributionVMO? data)> GetDailyMakroDisturbtion(string userId, DateTime date);
         Task<BasicErrorResponse> UpdateLayout(string userId, UserLayoutVM model);
         Task<BasicErrorResponse> AddToUserStatistics(string userId, List<UserStatisticsVM> model, IClientSessionHandle session = null, bool caloriesNormal = false);
-        Task<BasicErrorResponse> UpdateProfileInformation(string userId, UserProfileInformationVM model);
+        Task<(BasicErrorResponse error, string? newPfpUrl)> UpdateProfileInformation(string userId, UserProfileInformationVM model);
         Task<BasicErrorResponse> ChangeProfileVisilibity(string userId);
     }
 }
