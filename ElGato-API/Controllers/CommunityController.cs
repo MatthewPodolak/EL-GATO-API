@@ -1,4 +1,5 @@
-﻿using ElGato_API.Data.JWT;
+﻿using Azure;
+using ElGato_API.Data.JWT;
 using ElGato_API.Interfaces;
 using ElGato_API.VM.Community;
 using ElGato_API.VMO.Community;
@@ -119,6 +120,42 @@ namespace ElGato_API.Controllers
                 }
 
                 return Ok(response.data);
+            }
+            catch(Exception ex)
+            {
+                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured {ex.Message}", Success = false });
+            }
+        }
+
+        [HttpGet]
+        [Authorize(Policy = "user")]
+        [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> GetUserProfilePicture(string? userId = null)
+        {
+            try
+            {
+                var askingUserId = _jwtService.GetUserIdClaim();
+
+                if (String.IsNullOrEmpty(userId))
+                {
+                    userId = askingUserId;
+                }
+
+                var res = await _communityService.GetUserProfilePicture(userId);
+                if (!res.error.Success)
+                {
+                    return res.error.ErrorCode switch
+                    {
+                        ErrorCodes.Internal => StatusCode(500, res.error),
+                        ErrorCodes.NotFound => StatusCode(404, res.error),
+                        _ => BadRequest(res.error)
+                    };
+                }
+
+                return Ok(res.profilePcitrue);
             }
             catch(Exception ex)
             {

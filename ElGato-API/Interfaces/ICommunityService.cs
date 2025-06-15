@@ -24,5 +24,6 @@ namespace ElGato_API.Interfaces
         Task<(UserSearchVMO data, BasicErrorResponse error)> SearchForUsers(string userId, string query, int limit = 10);
         Task<(UserProfileDataVMO data, BasicErrorResponse error)> GetUserProfileData(string userId, string askingUserId, bool full = true);
         Task<(FollowersRequestVMO data, BasicErrorResponse erro)> GetFollowersRequests(string userId);
+        Task<(BasicErrorResponse error, string profilePcitrue)> GetUserProfilePicture(string userId);
     }
 }

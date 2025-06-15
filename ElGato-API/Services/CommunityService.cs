@@ -848,6 +848,7 @@ namespace ElGato_API.Services
                 }
 
                 vmo.GeneralProfileData = generalUserProfileData.data;
+                vmo.GeneralProfileData.UserId = userId;
                 vmo.GeneralProfileData.IsFollowed = isFollowed;
                 vmo.GeneralProfileData.IsRequested = isRequested;
                 vmo.GeneralProfileData.IsOwn = isOwn;
@@ -1429,6 +1430,25 @@ namespace ElGato_API.Services
             {
                 _logger.LogError(ex, $"Failed while trying to get user follower request list. UserId: {userId} Method: {nameof(GetFollowersRequests)}");
                 return (new FollowersRequestVMO(), new BasicErrorResponse() { Success = false, ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}" });
+            }
+        }
+
+        public async Task<(BasicErrorResponse error, string profilePcitrue)> GetUserProfilePicture(string userId)
+        {
+            try
+            {
+                var user = await _context.AppUser.FirstOrDefaultAsync(a => a.Id == userId);
+                if(user == null)
+                {
+                    return (new BasicErrorResponse() { Success = false, ErrorCode = ErrorCodes.NotFound, ErrorMessage = "User not found."}, String.Empty);
+                }
+
+                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" }, user.Pfp);
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to get user profile picture. UserId: {userId} Method: {nameof(GetUserProfilePicture)}");
+                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false }, String.Empty);
             }
         }
     }
