@@ -989,7 +989,9 @@ namespace ElGato_API.Services
                         await model.NewImage.CopyToAsync(fileStream);
                     }
 
-                    if (!string.IsNullOrEmpty(oldImage))
+                    string defImage = "/pfp-images/e2f56642-a493-4c6d-924b-d3072714646a.png";
+
+                    if (!string.IsNullOrEmpty(oldImage) && !oldImage.Equals(defImage, StringComparison.OrdinalIgnoreCase))
                     {
                         try
                         {
