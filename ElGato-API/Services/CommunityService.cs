@@ -708,7 +708,7 @@ namespace ElGato_API.Services
             }
         }
 
-        public async Task<(UserFollowersVMO data, BasicErrorResponse error)> GetUserFollowerLists(string userId, bool onlyFollowed)
+        public async Task<(UserFollowersVMO data, BasicErrorResponse error)> GetUserFollowerLists(string userId, bool onlyFollowed, string askingUserId = null)
         {
             try
             {
@@ -728,6 +728,19 @@ namespace ElGato_API.Services
                     });
                 }
 
+                List<string> askingUserFolloweeIds = new List<string>();
+                var isSelfRequest = string.IsNullOrEmpty(askingUserId) || askingUserId == userId;
+                if (!isSelfRequest)
+                {
+                    askingUserFolloweeIds = await _context.UserFollower
+                        .Where(f => f.FollowerId == askingUserId)
+                        .Select(f => f.FolloweeId)
+                        .ToListAsync();
+                }
+
+                List<string> askingUserIdRequestedFollowsIds = new List<string>();
+                askingUserIdRequestedFollowsIds = await _context.UserFollowerRequest.Where(a => a.RequesterId == askingUserId).Select(a => a.TargetId).ToListAsync();
+
                 if (!onlyFollowed)
                 {
                     vmo.Followers = user.Followers.Select(f => new UserFollowersList
@@ -735,7 +748,10 @@ namespace ElGato_API.Services
                         UserId = f.Follower.Id,
                         Name = f.Follower.Name??"User",
                         Pfp = f.Follower.Pfp,
-                        IsFollowed = user.Following.Any(ff => ff.FolloweeId == f.FollowerId)
+                        IsPrivate = f.Follower.IsProfilePrivate,
+                        IsFollowed = user.Following.Any(ff => ff.FolloweeId == f.FollowerId),
+                        IsRequested = askingUserIdRequestedFollowsIds.Contains(f.FollowerId),
+                        FollowedByAskingUser = isSelfRequest ? user.Following.Any(ff => ff.FolloweeId == f.FollowerId) : askingUserFolloweeIds.Contains(f.FollowerId)
                     }).ToList();
                 }
 
@@ -744,7 +760,10 @@ namespace ElGato_API.Services
                     UserId = f.Followee.Id,
                     Name = f.Followee.Name??"User",
                     Pfp = f.Followee.Pfp,
-                    IsFollowed = true
+                    IsPrivate= f.Followee.IsProfilePrivate,
+                    IsFollowed = true,
+                    IsRequested = askingUserIdRequestedFollowsIds.Contains(f.FolloweeId),
+                    FollowedByAskingUser = isSelfRequest ? true : askingUserFolloweeIds.Contains(f.FolloweeId)
                 }).ToList();
 
                 return (vmo, new BasicErrorResponse { Success = true, ErrorMessage = "Sucess", ErrorCode = ErrorCodes.NotFound });

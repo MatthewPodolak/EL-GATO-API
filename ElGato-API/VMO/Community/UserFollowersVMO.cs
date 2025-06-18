@@ -12,5 +12,8 @@
         public string Pfp { get; set; }
         public string UserId { get; set; }
         public bool IsFollowed { get; set; }
+        public bool FollowedByAskingUser { get; set; } = false;
+        public bool IsPrivate { get; set; } = false;
+        public bool IsRequested { get; set; } = false;
     }
 }

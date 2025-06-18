@@ -19,7 +19,7 @@ namespace ElGato_API.Interfaces
         Task<BasicErrorResponse> RemoveFollowRequest(string userId, string userIdToRemoveRequestFrom);
         Task<BasicErrorResponse> RespondToFollowRequest(string userId, RespondToFollowVM model);
         Task<(FriendsLeaderboardVMO data, BasicErrorResponse error)> GetFriendsLeaderboards(string userId);
-        Task<(UserFollowersVMO data, BasicErrorResponse error)> GetUserFollowerLists(string userId, bool onlyFollowed);
+        Task<(UserFollowersVMO data, BasicErrorResponse error)> GetUserFollowerLists(string userId, bool onlyFollowed, string askingUserId = null);
         Task<(BlockListVMO data, BasicErrorResponse error)> GetUserBlockList(string userId);
         Task<(UserSearchVMO data, BasicErrorResponse error)> SearchForUsers(string userId, string query, int limit = 10);
         Task<(UserProfileDataVMO data, BasicErrorResponse error)> GetUserProfileData(string userId, string askingUserId, bool full = true);
