@@ -12,10 +12,11 @@ namespace ElGato_API.VM.Requests
 
     public enum UserReportCase
     { 
-        Other,
-        VulgarUserName,
-        VulgarProfilePicture,
-        Racism,
-        Abuse
+        Spam,
+        Underage,
+        Nudity,
+        Harmfull,
+        JustBeacuse,
+        Other
     }
 }
