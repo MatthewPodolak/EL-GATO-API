@@ -9,19 +9,19 @@ namespace ElGato_API.Interfaces
 {
     public interface IUserService
     {
-        Task<(BasicErrorResponse error, UserCalorieIntake model)> GetUserCalories(string userId);
-        Task<(BasicErrorResponse error, UserCalorieIntake? model)> GetCurrentCalories(string userId, DateTime date);
-        Task<(BasicErrorResponse error, double weight)> GetCurrentUserWeight(string userId);
-        Task<(BasicErrorResponse error, double water)> GetCurrentWaterIntake(string userId, DateTime date);
-        Task<(BasicErrorResponse error, string? data)> GetSystem(string userId);
-        Task<(BasicErrorResponse error, UserLayoutVMO? data)> GetUserLayout(string userId);
-        Task<(BasicErrorResponse error, ExercisePastDataVMO? data)> GetPastExerciseData(string userId, string exerciseName, string period = "all");
-        Task<(BasicErrorResponse error, MuscleUsageDataVMO? data)> GetMuscleUsageData(string userId, string period = "all");
-        Task<(BasicErrorResponse error, MakroDataVMO? data)> GetPastMakroData(string userId, string period = "all");
-        Task<(BasicErrorResponse error, DailyMakroDistributionVMO? data)> GetDailyMakroDisturbtion(string userId, DateTime date);
-        Task<BasicErrorResponse> UpdateLayout(string userId, UserLayoutVM model);
-        Task<BasicErrorResponse> AddToUserStatistics(string userId, List<UserStatisticsVM> model, IClientSessionHandle session = null, bool caloriesNormal = false);
-        Task<(BasicErrorResponse error, string? newPfpUrl)> UpdateProfileInformation(string userId, UserProfileInformationVM model);
-        Task<BasicErrorResponse> ChangeProfileVisilibity(string userId);
+        Task<(ErrorResponse error, UserCalorieIntake model)> GetUserCalories(string userId);
+        Task<(ErrorResponse error, UserCalorieIntake? model)> GetCurrentCalories(string userId, DateTime date);
+        Task<(ErrorResponse error, double weight)> GetCurrentUserWeight(string userId);
+        Task<(ErrorResponse error, double water)> GetCurrentWaterIntake(string userId, DateTime date);
+        Task<(ErrorResponse error, string? data)> GetSystem(string userId);
+        Task<(ErrorResponse error, UserLayoutVMO? data)> GetUserLayout(string userId);
+        Task<(ErrorResponse error, ExercisePastDataVMO? data)> GetPastExerciseData(string userId, string exerciseName, string period = "all");
+        Task<(ErrorResponse error, MuscleUsageDataVMO? data)> GetMuscleUsageData(string userId, string period = "all");
+        Task<(ErrorResponse error, MakroDataVMO? data)> GetPastMakroData(string userId, string period = "all");
+        Task<(ErrorResponse error, DailyMakroDistributionVMO? data)> GetDailyMakroDisturbtion(string userId, DateTime date);
+        Task<ErrorResponse> UpdateLayout(string userId, UserLayoutVM model);
+        Task<ErrorResponse> AddToUserStatistics(string userId, List<UserStatisticsVM> model, IClientSessionHandle session = null, bool caloriesNormal = false);
+        Task<(ErrorResponse error, string? newPfpUrl)> UpdateProfileInformation(string userId, UserProfileInformationVM model);
+        Task<ErrorResponse> ChangeProfileVisilibity(string userId);
     }
 }

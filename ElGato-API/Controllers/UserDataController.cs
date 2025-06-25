@@ -31,9 +31,9 @@ namespace ElGato_API.Controllers
         [HttpGet]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(UserCalorieIntake), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetUserCaloriesIntake()
         {
             try
@@ -55,16 +55,16 @@ namespace ElGato_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured {ex.Message}", Success = false });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
         [HttpGet]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(UserCalorieIntake), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetUserCurrentDayCalorieIntake(DateTime date)
         {
             try
@@ -86,16 +86,16 @@ namespace ElGato_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured: {ex.Message}", Success = false });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
         [HttpGet]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(double), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetUserWeight()
         {
             try
@@ -117,16 +117,16 @@ namespace ElGato_API.Controllers
             }
             catch(Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured: {ex.Message}", Success = false });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
         [HttpGet]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(double), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetUserWaterIntake(DateTime date)
         {
             try
@@ -148,7 +148,7 @@ namespace ElGato_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured: {ex.Message}", Success = false });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
 
         }
@@ -156,8 +156,8 @@ namespace ElGato_API.Controllers
         [HttpGet]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetUserMeasurmentsSystem()
         {
             try
@@ -178,16 +178,16 @@ namespace ElGato_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured {ex.Message}", Success = false });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
         [HttpGet]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(UserLayoutVMO), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetUserLayoutData()
         {
             try
@@ -209,7 +209,7 @@ namespace ElGato_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An inernal server error occured {ex.Message}", Success = true });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
 
         }
@@ -217,8 +217,8 @@ namespace ElGato_API.Controllers
         [HttpGet]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(MakroDataVMO), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetPastMakroData(string? period)
         {
             try
@@ -239,16 +239,16 @@ namespace ElGato_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured {ex.Message}", Success = false });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
         [HttpGet]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(DailyMakroDistributionVMO), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetCurrentDailyMakroDistribution(DateTime date)
         {
             try
@@ -270,15 +270,15 @@ namespace ElGato_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An inernal server error occured: {ex.Message}", Success = false });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
         [HttpGet]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(MuscleUsageDataVMO), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetTrainedMuscleData(string? period)
         {
             try
@@ -299,28 +299,23 @@ namespace ElGato_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured: {ex.Message}", Success = false });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
         [HttpPost]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(List<ExercisePastDataVMO>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetPastDataForExercises([FromBody] GetPasstExerciseDataVM model)
         {
             try
             {
                 if (!ModelState.IsValid)
                 {
-                    return BadRequest(new BasicErrorResponse()
-                    {
-                        ErrorCode = ErrorCodes.ModelStateNotValid,
-                        ErrorMessage = "Model state not valid.",
-                        Success = false
-                    });
+                    return StatusCode(400, ErrorResponse.StateNotValid<GetPasstExerciseDataVM>());
                 }
 
                 var userId = _jwtService.GetUserIdClaim();
@@ -347,29 +342,29 @@ namespace ElGato_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured, ex {ex.Message}", Success = false });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
         [HttpPatch]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(AchievmentResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> UpdateUserHealthConnectData([FromBody] List<UserStatisticsVM> model)
         {
             try
             {
                 if (!ModelState.IsValid)
                 {
-                    return StatusCode(400, new BasicErrorResponse() { ErrorCode = ErrorCodes.ModelStateNotValid, ErrorMessage = $"Model state not valid. Check {nameof(UserStatisticsVM)}", Success = false });
+                    return StatusCode(400, ErrorResponse.StateNotValid<List<UserStatisticsVM>>());
                 }
 
                 var filteredList = model.Where(x => x.Type == StatisticType.CaloriesBurnt || x.Type == StatisticType.StepsTaken).ToList();
                 if (filteredList.Count == 0)
                 {
-                    return Ok(new AchievmentResponse() { Status = new BasicErrorResponse() { Success = true, ErrorMessage = "Sucess", ErrorCode = ErrorCodes.None } });
+                    return Ok(new AchievmentResponse() { Status = ErrorResponse.Ok() });
                 }
 
                 var userId = _jwtService.GetUserIdClaim();
@@ -390,23 +385,23 @@ namespace ElGato_API.Controllers
             }
             catch(Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An inernal server error occured: {ex.Message}", Success = false });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
         [HttpPatch]
         [Authorize(Policy = "user")]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> UpdateUserLayout([FromBody] UserLayoutVM model)
         {
             try
             {
                 if (!ModelState.IsValid)
                 {
-                    return StatusCode(400, new BasicErrorResponse() { ErrorCode = ErrorCodes.ModelStateNotValid, ErrorMessage = $"Model state not valid. Check {nameof(UserLayoutVM)}", Success = false });
+                    return StatusCode(400, ErrorResponse.StateNotValid<UserLayoutVM>());
                 }
 
                 var userId = _jwtService.GetUserIdClaim();
@@ -426,7 +421,7 @@ namespace ElGato_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An inernal server error occured: {ex.Message}", Success = false });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
 
         }
@@ -434,16 +429,16 @@ namespace ElGato_API.Controllers
         [HttpPatch]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> UpdateProfileInformation([FromForm] UserProfileInformationVM model)
         {
             try
             {
                 if (!ModelState.IsValid || (string.IsNullOrEmpty(model.NewDesc) && string.IsNullOrEmpty(model.NewName) && model.NewImage == null))
                 {
-                    return StatusCode(400, new BasicErrorResponse() { ErrorCode = ErrorCodes.ModelStateNotValid, ErrorMessage = $"Model state not valid. Check {nameof(UserLayoutVM)}", Success = false });
+                    return StatusCode(400, ErrorResponse.StateNotValid<UserProfileInformationVM>());
                 }
 
                 var userId = _jwtService.GetUserIdClaim();
@@ -463,7 +458,7 @@ namespace ElGato_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An inernal server error occured: {ex.Message}", Success = false });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
 
         }
@@ -471,9 +466,9 @@ namespace ElGato_API.Controllers
         [HttpPatch]
         [Authorize(Policy = "user")]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> ChangeProfileVisilibity()
         {
             try
@@ -495,7 +490,7 @@ namespace ElGato_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An inernal server error occured: {ex.Message}", Success = false });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
 
         }

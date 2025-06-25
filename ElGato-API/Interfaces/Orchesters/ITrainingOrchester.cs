@@ -5,9 +5,9 @@ namespace ElGato_API.Interfaces.Orchesters
 {
     public interface ITrainingOrchester
     {
-        Task<BasicErrorResponse> AddSeriesToAnExercise(string userId, List<AddSeriesToAnExerciseVM> model);
-        Task<BasicErrorResponse> UpdateExerciseSeries(string userId, List<UpdateExerciseSeriesVM> model);
-        Task<BasicErrorResponse> RemoveSeriesFromAnExercise(string userId, List<RemoveSeriesFromExerciseVM> model);
-        Task<BasicErrorResponse> RemoveExercisesFromTrainingDay(string userId, List<RemoveExerciseFromTrainingDayVM> model);
+        Task<ErrorResponse> AddSeriesToAnExercise(string userId, List<AddSeriesToAnExerciseVM> model);
+        Task<ErrorResponse> UpdateExerciseSeries(string userId, List<UpdateExerciseSeriesVM> model);
+        Task<ErrorResponse> RemoveSeriesFromAnExercise(string userId, List<RemoveSeriesFromExerciseVM> model);
+        Task<ErrorResponse> RemoveExercisesFromTrainingDay(string userId, List<RemoveExerciseFromTrainingDayVM> model);
     }
 }

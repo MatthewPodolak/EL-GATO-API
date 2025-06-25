@@ -28,13 +28,13 @@ namespace ElGato_API.Services.Orchesters
             _trainingService = trainingService;
         }
 
-        public async Task<BasicErrorResponse> AddSeriesToAnExercise(string userId, List<AddSeriesToAnExerciseVM> model)
+        public async Task<ErrorResponse> AddSeriesToAnExercise(string userId, List<AddSeriesToAnExerciseVM> model)
         {
             try
             {
                 if (model.IsNullOrEmpty())
                 {
-                    return new BasicErrorResponse() { ErrorCode = ErrorCodes.ModelStateNotValid, ErrorMessage = $"Invalid model. Check {nameof(AddSeriesToAnExerciseVM)}", Success = false };
+                    return ErrorResponse.StateNotValid<AddSeriesToAnExerciseVM>();
                 }
 
                 double totalWeight = model.SelectMany(item => item.Series).Sum(s => s.WeightKg * s.Repetitions);
@@ -63,21 +63,21 @@ namespace ElGato_API.Services.Orchesters
                     if (failed != null)
                     {
                         await session.AbortTransactionAsync();
-                        return failed ?? new BasicErrorResponse() { ErrorMessage = "Update failed.", ErrorCode = ErrorCodes.Failed, Success = false };
+                        return failed ?? ErrorResponse.Failed();
                     }
 
                     await session.CommitTransactionAsync();
-                    return new BasicErrorResponse { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess" };
+                    return ErrorResponse.Ok();
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to add series to an exercise. UserId: {userId} Method: {nameof(AddSeriesToAnExercise)}");
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, Success = false, ErrorMessage = $"An error occured: {ex.Message}" });
+                return ErrorResponse.Internal(ex.Message);
             }
         }
 
-        public async Task<BasicErrorResponse> UpdateExerciseSeries(string userId, List<UpdateExerciseSeriesVM> model)
+        public async Task<ErrorResponse> UpdateExerciseSeries(string userId, List<UpdateExerciseSeriesVM> model)
         {
             try
             {
@@ -118,22 +118,22 @@ namespace ElGato_API.Services.Orchesters
                     {
                         var firstError = failed.First();
                         _logger.LogWarning($"Update failed. Method: {nameof(UpdateExerciseSeries)}");
-                        return firstError ?? new BasicErrorResponse() { ErrorCode = ErrorCodes.Failed, Success = false, ErrorMessage = "Update failed." };
+                        return firstError ?? ErrorResponse.Failed();
                     }
 
                     await session.CommitTransactionAsync();
-                    return new BasicErrorResponse { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess" };
+                    return ErrorResponse.Ok();
                 }
               
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to update exercise series. UserId: {userId} Method: {nameof(UpdateExerciseSeries)}");
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, Success = false, ErrorMessage = $"An error occured: {ex.Message}" });
+                return ErrorResponse.Internal(ex.Message);
             }
         }
 
-        public async Task<BasicErrorResponse> RemoveSeriesFromAnExercise(string userId, List<RemoveSeriesFromExerciseVM> model)
+        public async Task<ErrorResponse> RemoveSeriesFromAnExercise(string userId, List<RemoveSeriesFromExerciseVM> model)
         {
             try
             {
@@ -174,21 +174,21 @@ namespace ElGato_API.Services.Orchesters
                     {
                         var firstError = failed.First();
                         _logger.LogWarning($"Update failed. Method: {nameof(RemoveSeriesFromAnExercise)}");
-                        return firstError ?? new BasicErrorResponse() { ErrorCode = ErrorCodes.Failed, Success = false, ErrorMessage = "Update failed." };
+                        return firstError ?? ErrorResponse.Failed();
                     }
 
                     await session.CommitTransactionAsync();
-                    return new BasicErrorResponse { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess" };
+                    return ErrorResponse.Ok();
                 }
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to remove exercise series. UserId: {userId} Method: {nameof(RemoveSeriesFromAnExercise)}");
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, Success = false, ErrorMessage = $"An error occured: {ex.Message}" });
+                return ErrorResponse.Internal(ex.Message);
             }
         }
 
-        public async Task<BasicErrorResponse> RemoveExercisesFromTrainingDay(string userId, List<RemoveExerciseFromTrainingDayVM> model)
+        public async Task<ErrorResponse> RemoveExercisesFromTrainingDay(string userId, List<RemoveExerciseFromTrainingDayVM> model)
         {
             try
             {
@@ -221,17 +221,17 @@ namespace ElGato_API.Services.Orchesters
                     if (failed.Any())
                     {
                         var firstError = failed.First();
-                        return firstError ?? new BasicErrorResponse() { ErrorCode = ErrorCodes.Failed, Success = false, ErrorMessage = "Update failed." };
+                        return firstError ?? ErrorResponse.Failed();
                     }
 
                     await session.CommitTransactionAsync();
-                    return new BasicErrorResponse { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess" };
+                    return ErrorResponse.Ok();
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to remove exercise. UserId: {userId} Method: {nameof(RemoveExercisesFromTrainingDay)}");
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, Success = false, ErrorMessage = $"An error occured: {ex.Message}" });
+                return ErrorResponse.Internal(ex.Message);
             }
         }
     }

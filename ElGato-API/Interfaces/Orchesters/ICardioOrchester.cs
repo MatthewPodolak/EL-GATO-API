@@ -8,6 +8,6 @@ namespace ElGato_API.Interfaces.Orchesters
     public interface ICardioOrchester
     {
         Task<AchievmentResponse> AddExerciseToTrainingDay(string userId, AddCardioExerciseVM model);
-        Task<BasicErrorResponse> DeleteExercisesFromCardioTrainingDay(string userId, DeleteExercisesFromCardioTrainingVM model);
+        Task<ErrorResponse> DeleteExercisesFromCardioTrainingDay(string userId, DeleteExercisesFromCardioTrainingVM model);
     }
 }

@@ -5,9 +5,9 @@ namespace ElGato_API.Interfaces
 {
     public interface IUserRequestService
     {
-        Task<BasicErrorResponse> RequestAddIngredient(string userId, AddProductRequestVM model);
-        Task<BasicErrorResponse> RequestReportIngredient(string userId, IngredientReportRequestVM model);
-        Task<BasicErrorResponse> RequestReportMeal(string userId, ReportMealRequestVM model);
-        Task<BasicErrorResponse> RequestReportUser(string userId, ReportUserVM model);
+        Task<ErrorResponse> RequestAddIngredient(string userId, AddProductRequestVM model);
+        Task<ErrorResponse> RequestReportIngredient(string userId, IngredientReportRequestVM model);
+        Task<ErrorResponse> RequestReportMeal(string userId, ReportMealRequestVM model);
+        Task<ErrorResponse> RequestReportUser(string userId, ReportUserVM model);
     }
 }

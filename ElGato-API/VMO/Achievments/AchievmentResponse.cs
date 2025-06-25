@@ -5,7 +5,7 @@ namespace ElGato_API.VMO.Achievments
     public class AchievmentResponse
     {
         public AchievmentVMO? Achievment { get; set; }
-        public BasicErrorResponse Status { get; set; }
+        public ErrorResponse.ErrorResponse Status { get; set; }
     }
 
     public class AchievmentVMO 

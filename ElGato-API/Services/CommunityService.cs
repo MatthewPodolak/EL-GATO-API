@@ -151,7 +151,7 @@ namespace ElGato_API.Services
             }
         }
 
-        public async Task<BasicErrorResponse> RequestFollow(string userAskingId, string userTargetId)
+        public async Task<ErrorResponse> RequestFollow(string userAskingId, string userTargetId)
         {
             try
             {
@@ -159,7 +159,7 @@ namespace ElGato_API.Services
                 if(requestCheck != null)
                 {
                     _logger.LogWarning($"User tried to request follow second time. UserId: {userAskingId} Targer: {userTargetId} Method: {nameof(RequestFollow)}");
-                    return new BasicErrorResponse() { ErrorCode = ErrorCodes.Failed, ErrorMessage = "Already requested.", Success = false };
+                    return ErrorResponse.Failed("Already requested");
                 }
 
                 var newRequest = new UserFollowerRequest()
@@ -173,24 +173,24 @@ namespace ElGato_API.Services
                 _context.UserFollowerRequest.Add(newRequest);
                 await _context.SaveChangesAsync();
 
-                return new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess, requested." };
+                return ErrorResponse.Ok("Sucess, requested.");
 
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to request follow. UserId: {userAskingId} Targer: {userTargetId} Method: {nameof(RequestFollow)}");
-                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, Success = false, ErrorMessage = $"An error occured" };
+                return ErrorResponse.Internal(ex.Message);
             }
         }
 
-        public async Task<BasicErrorResponse> FollowUser(string userId, string userToFollowId)
+        public async Task<ErrorResponse> FollowUser(string userId, string userToFollowId)
         {
             try
             {
                 var followed = await _context.UserFollower.AnyAsync(a=>a.FollowerId == userId && a.FolloweeId == userToFollowId);
                 if (followed)
                 {
-                    return new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Already followed" };
+                    return ErrorResponse.Ok("Already followed");
                 }
 
                 var userFollow = new UserFollower
@@ -203,12 +203,7 @@ namespace ElGato_API.Services
                 var userToFollow = await _context.AppUser.FirstOrDefaultAsync(a=>a.Id == userToFollowId);
                 if(user == null || userToFollow == null)
                 {
-                    return new BasicErrorResponse()
-                    {
-                        ErrorCode = ErrorCodes.NotFound,
-                        ErrorMessage = "Couldnt find user with given id",
-                        Success = false
-                    };
+                    return ErrorResponse.NotFound("Couldnt find user with given id");
                 } 
 
                 user.FollowingCount += 1;
@@ -217,40 +212,30 @@ namespace ElGato_API.Services
 
                 await _context.SaveChangesAsync();
 
-                return new BasicErrorResponse()
-                {
-                    ErrorCode = ErrorCodes.None,
-                    ErrorMessage = "Sucess",
-                    Success = true
-                };
+                return ErrorResponse.Ok();
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while tryinh to follow user. UserId: {userId} FollowUserId: {userToFollowId} Method: {nameof(FollowUser)}");
-                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false };
+                return ErrorResponse.Internal(ex.Message);
             }
         }
 
-        public async Task<BasicErrorResponse> UnFollowUser(string userId, string userToUnfollowId)
+        public async Task<ErrorResponse> UnFollowUser(string userId, string userToUnfollowId)
         {
             try
             {
                 var followed = await _context.UserFollower.FirstOrDefaultAsync(a => a.FollowerId == userId && a.FolloweeId == userToUnfollowId);
                 if (followed == null)
                 {
-                    return new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Already not following." };
+                    return ErrorResponse.Ok("Already not following.");
                 }
 
                 var user = await _context.AppUser.FirstOrDefaultAsync(a => a.Id == userId);
                 var userToUnFollow = await _context.AppUser.FirstOrDefaultAsync(a => a.Id == userToUnfollowId);
                 if (user == null || userToUnFollow == null)
                 {
-                    return new BasicErrorResponse()
-                    {
-                        ErrorCode = ErrorCodes.NotFound,
-                        ErrorMessage = "Couldnt find user with given id",
-                        Success = false
-                    };
+                    return ErrorResponse.NotFound("Couldnt find user with given id");
                 }
 
                 _context.UserFollower.Remove(followed);
@@ -258,20 +243,15 @@ namespace ElGato_API.Services
                 userToUnFollow.FollowersCount -= 1;
                 await _context.SaveChangesAsync();
 
-                return new BasicErrorResponse()
-                {
-                    ErrorCode = ErrorCodes.None,
-                    ErrorMessage = "Sucess",
-                    Success = true
-                };
+                return ErrorResponse.Ok();
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to unfollow user. UserId: {userId} UnfollowUserId: {userToUnfollowId} Method: {nameof(UnFollowUser)}");
-                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false };
+                return ErrorResponse.Internal(ex.Message);
             }
         }
-        public async Task<BasicErrorResponse> BlockUser(string userId, string userToBlockId)
+        public async Task<ErrorResponse> BlockUser(string userId, string userToBlockId)
         {
             try
             {
@@ -280,12 +260,7 @@ namespace ElGato_API.Services
 
                 if(userToBlock == null || user == null)
                 {
-                    return new BasicErrorResponse()
-                    {
-                        ErrorCode = ErrorCodes.NotFound,
-                        ErrorMessage = "Couldn't find any user with given id.",
-                        Success = false
-                    };
+                    return ErrorResponse.NotFound("Couldn't find any user with given id.");
                 }
 
                 var followed = await _context.UserFollower.FirstOrDefaultAsync(a => a.FollowerId == userId && a.FolloweeId == userToBlockId);
@@ -300,12 +275,7 @@ namespace ElGato_API.Services
                 var alreadyBlocked = await _context.UserBlock.AnyAsync(b => b.BlockerId == userId && b.BlockedId == userToBlockId);
                 if (alreadyBlocked)
                 {
-                    return new BasicErrorResponse()
-                    {
-                        ErrorCode = ErrorCodes.AlreadyExists,
-                        ErrorMessage = "User is already blocked.",
-                        Success = false
-                    };
+                    return ErrorResponse.AlreadyExists("User is already blocked.");
                 }
 
                 var newBlockRecord = new UserBlock()
@@ -317,15 +287,15 @@ namespace ElGato_API.Services
                 _context.UserBlock.Add(newBlockRecord);
                 await _context.SaveChangesAsync();
 
-                return new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" };
+                return ErrorResponse.Ok();
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to block user. UserId: {userId} BlockingUserId: {userToBlockId} Method: {nameof(BlockUser)}");
-                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false };
+                return ErrorResponse.Internal(ex.Message);
             }
         }
-        public async Task<BasicErrorResponse> UnBlockUser(string userId, string userToUnblockId)
+        public async Task<ErrorResponse> UnBlockUser(string userId, string userToUnblockId)
         {
             try
             {
@@ -334,12 +304,8 @@ namespace ElGato_API.Services
 
                 if (userToUnblock == null || user == null)
                 {
-                    return new BasicErrorResponse()
-                    {
-                        ErrorCode = ErrorCodes.NotFound,
-                        ErrorMessage = "Couldn't find any user with given id.",
-                        Success = false
-                    };
+
+                    return ErrorResponse.NotFound("Couldn't find any user with given id.");
                 }
 
                 var record = await _context.UserBlock.FirstOrDefaultAsync(b => b.BlockerId == userId && b.BlockedId == userToUnblockId);
@@ -349,43 +315,38 @@ namespace ElGato_API.Services
                     await _context.SaveChangesAsync();
                 }
 
-                return new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" };
+                return ErrorResponse.Ok();
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to unlock user. UserId: {userId} BlockingUserId: {userToUnblockId} Method: {nameof(UnBlockUser)}");
-                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false };
+                return ErrorResponse.Internal(ex.Message);
             }
         }
 
-        public async Task<BasicErrorResponse> RemoveFollowRequest(string userId, string userIdToRemoveRequestFrom)
+        public async Task<ErrorResponse> RemoveFollowRequest(string userId, string userIdToRemoveRequestFrom)
         {
             try
             {
                 var request = await _context.UserFollowerRequest.FirstOrDefaultAsync(a => a.RequesterId == userId && a.TargetId == userIdToRemoveRequestFrom);
                 if (request == null)
                 {
-                    return new BasicErrorResponse()
-                    {
-                        ErrorCode = ErrorCodes.NotFound,
-                        ErrorMessage = "Follow request for user does not exists.",
-                        Success = false
-                    };
+                    return ErrorResponse.NotFound("Follow request for user does not exists.");
                 }
 
                 _context.UserFollowerRequest.Remove(request);
                 await _context.SaveChangesAsync();
 
-                return new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess" };
+                return ErrorResponse.Ok();
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to remove follow request. UserId: {userId} From: {userIdToRemoveRequestFrom} Method: {nameof(RemoveFollowRequest)}");
-                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, Success = false, ErrorMessage = $"An error occured: {ex.Message}" };
+                return ErrorResponse.Internal(ex.Message);
             }
         }
 
-        public async Task<BasicErrorResponse> RespondToFollowRequest(string userId, RespondToFollowVM model)
+        public async Task<ErrorResponse> RespondToFollowRequest(string userId, RespondToFollowVM model)
         {
             try
             {
@@ -400,16 +361,16 @@ namespace ElGato_API.Services
                 }
 
                 _logger.LogError($"Failed while trying to respond to user request. UserId: {userId} Method: {nameof(RespondToFollowRequest)}");
-                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Failed, ErrorMessage = $"Failed while trying to respond to user request. Check {nameof(RespondToFollowVM)}", Success = false };
+                return ErrorResponse.Failed($"Failed while trying to respond to user request. Check {nameof(RespondToFollowVM)}");
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to respond to user request. UserId: {userId} Method: {nameof(RespondToFollowRequest)}");
-                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false };
+                return ErrorResponse.Internal(ex.Message);
             }
         }
 
-        public async Task<(FriendsLeaderboardVMO data, BasicErrorResponse error)> GetFriendsLeaderboards(string userId)
+        public async Task<(FriendsLeaderboardVMO data, ErrorResponse error)> GetFriendsLeaderboards(string userId)
         {
             try
             {
@@ -419,7 +380,7 @@ namespace ElGato_API.Services
                 if(user == null)
                 {
                     _logger.LogWarning($"User with given id: {userId} not found. Method: {nameof(GetFriendsLeaderboards)}");
-                    return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, ErrorMessage = $"User with id: {userId} not found.", Success = false });
+                    return (vmo, ErrorResponse.NotFound($"User with id: {userId} not found."));
                 }
 
                 var followed = await GetUserFollowerLists(userId, true);
@@ -494,16 +455,16 @@ namespace ElGato_API.Services
                     vmo.Leaderboards.Add(combined);
                 }
 
-                return (vmo, new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess" });
+                return (vmo, ErrorResponse.Ok());
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get friends leaderboards UserId: {userId} Method: {nameof(GetFriendsLeaderboards)}");
-                return (new FriendsLeaderboardVMO(), new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false });
+                return (new FriendsLeaderboardVMO(), ErrorResponse.Internal(ex.Message));
             }
         }
 
-        private async Task<(List<Leaderboard> data, BasicErrorResponse error)> GetFriendsLeaderboardMetricForUser(string userId, bool isOwn = false)
+        private async Task<(List<Leaderboard> data, ErrorResponse error)> GetFriendsLeaderboardMetricForUser(string userId, bool isOwn = false)
         {
             try
             {
@@ -522,7 +483,7 @@ namespace ElGato_API.Services
                 if (user == null)
                 {
                     _logger.LogWarning($"User with given id not found. UserId: {userId} Method: {nameof(GetFriendsLeaderboardMetricForUser)}");
-                    return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, Success = false, ErrorMessage = "User with given id not found." });
+                    return (vmo, ErrorResponse.NotFound("User with given id not found."));
                 }
 
                 var userData = new LeaderboardUserData { Name = user.Name ?? "user", Pfp = user.Pfp ?? String.Empty, UserId = user.Id ?? String.Empty };
@@ -648,24 +609,24 @@ namespace ElGato_API.Services
                     BestIn(weekAgo)?.Let(r => lb.Week.Add(r));
                 }
 
-                return (vmo, new BasicErrorResponse { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess" });
+                return (vmo, ErrorResponse.Ok());
 
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get leaderboard metrics data for user. UserId: {userId} Method: {nameof(GetFriendsLeaderboardMetricForUser)}");
-                return (new List<Leaderboard>(), new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false });
+                return (new List<Leaderboard>(), ErrorResponse.Internal(ex.Message));
             }
         }
 
-        private async Task<BasicErrorResponse> AcceptFollowRequest(string userId, RespondToFollowVM model)
+        private async Task<ErrorResponse> AcceptFollowRequest(string userId, RespondToFollowVM model)
         {
             try
             {
                 var request = await _context.UserFollowerRequest.FirstOrDefaultAsync(a => a.Id == model.RequestId && a.TargetId == userId && a.RequesterId == model.RequestingUserId);
                 if (request == null)
                 {
-                    return new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, Success = false, ErrorMessage = "Request does not exists." };
+                    return ErrorResponse.NotFound("Request does not exists.");
                 }
 
                 _context.UserFollowerRequest.Remove(request);
@@ -676,39 +637,38 @@ namespace ElGato_API.Services
                 }
 
                 await _context.SaveChangesAsync();
-                return new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" };
+                return ErrorResponse.Ok();
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to respond to accept user request. UserId: {userId} Method: {nameof(AcceptFollowRequest)}");
-                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false };
+                return ErrorResponse.Internal(ex.Message);
             }
         }
 
-        private async Task<BasicErrorResponse> DeclineFollowRequest(string userId, RespondToFollowVM model)
+        private async Task<ErrorResponse> DeclineFollowRequest(string userId, RespondToFollowVM model)
         {
             try
             {
                 var request = await _context.UserFollowerRequest.FirstOrDefaultAsync(a => a.Id == model.RequestId && a.TargetId == userId && a.RequesterId == model.RequestingUserId);
                 if (request == null)
                 {
-                    return new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, Success = false, ErrorMessage = "Request does not exists." };
+                    return ErrorResponse.NotFound("Request does not exists.");
                 }
 
                 _context.UserFollowerRequest.Remove(request);
                 await _context.SaveChangesAsync();
 
-                return new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" };
+                return ErrorResponse.Ok();
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to respond to decline user request. UserId: {userId} Method: {nameof(DeclineFollowRequest)}");
-
-                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false };
+                return ErrorResponse.Internal(ex.Message);
             }
         }
 
-        public async Task<(UserFollowersVMO data, BasicErrorResponse error)> GetUserFollowerLists(string userId, bool onlyFollowed, string askingUserId = null)
+        public async Task<(UserFollowersVMO data, ErrorResponse error)> GetUserFollowerLists(string userId, bool onlyFollowed, string askingUserId = null)
         {
             try
             {
@@ -720,12 +680,7 @@ namespace ElGato_API.Services
 
                 if (user == null)
                 {
-                    return (new UserFollowersVMO(), new BasicErrorResponse
-                    {
-                        ErrorCode = ErrorCodes.NotFound,
-                        ErrorMessage = "User not found",
-                        Success = false
-                    });
+                    return (new UserFollowersVMO(), ErrorResponse.NotFound("User not found."));
                 }
 
                 List<string> askingUserFolloweeIds = new List<string>();
@@ -766,16 +721,16 @@ namespace ElGato_API.Services
                     FollowedByAskingUser = isSelfRequest ? true : askingUserFolloweeIds.Contains(f.FolloweeId)
                 }).ToList();
 
-                return (vmo, new BasicErrorResponse { Success = true, ErrorMessage = "Sucess", ErrorCode = ErrorCodes.NotFound });
+                return (vmo, ErrorResponse.Ok());
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get user follow lists. UserId: {userId} Method: {nameof(GetUserFollowerLists)}");
-                return (new UserFollowersVMO(), new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false });
+                return (new UserFollowersVMO(), ErrorResponse.Internal(ex.Message));
             }
         }
 
-        public async Task<(BlockListVMO data, BasicErrorResponse error)> GetUserBlockList(string userId)
+        public async Task<(BlockListVMO data, ErrorResponse error)> GetUserBlockList(string userId)
         {
             try
             {
@@ -784,7 +739,7 @@ namespace ElGato_API.Services
                 if (user == null)
                 {
                     _logger.LogWarning($"Trying to acess non existing user Method: {nameof(GetUserBlockList)}");
-                    return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, ErrorMessage = $"User with id: {userId} Not found.", Success = false });
+                    return (vmo, ErrorResponse.NotFound($"User with id: {userId} Not found."));
                 }
 
                 vmo.BlockList = user.BlockedUsers.Select(a => new BlockList
@@ -794,16 +749,16 @@ namespace ElGato_API.Services
                     UserId = a.Blocked.Id,
                 }).ToList();
 
-                return (vmo, new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess" });
+                return (vmo, ErrorResponse.Ok());
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get user block list. UserId: {userId} Method: {nameof(GetUserBlockList)}");
-                return (new BlockListVMO(), new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false });
+                return (new BlockListVMO(), ErrorResponse.Internal(ex.Message));
             }
         }
 
-        public async Task<(UserSearchVMO data, BasicErrorResponse error)> SearchForUsers(string userId, string query, int limit = 10)
+        public async Task<(UserSearchVMO data, ErrorResponse error)> SearchForUsers(string userId, string query, int limit = 10)
         {
             try
             {
@@ -825,16 +780,16 @@ namespace ElGato_API.Services
 
                 vmo.Users = users;
 
-                return (vmo, new BasicErrorResponse{ Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Success" });
+                return (vmo, ErrorResponse.Ok());
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to perform user search. UserRequestingId: {userId} Query: {query} Method: {nameof(SearchForUsers)}");
-                return (new UserSearchVMO(), new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false });
+                return (new UserSearchVMO(), ErrorResponse.Internal(ex.Message));
             }
         }
 
-        public async Task<(UserProfileDataVMO data, BasicErrorResponse error)> GetUserProfileData(string userId, string askingUserId, bool full = true)
+        public async Task<(UserProfileDataVMO data, ErrorResponse error)> GetUserProfileData(string userId, string askingUserId, bool full = true)
         {
             try
             {
@@ -874,7 +829,7 @@ namespace ElGato_API.Services
 
                 if (!full)
                 {
-                    return (vmo, new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess" });
+                    return (vmo, ErrorResponse.Ok());
                 }
 
 
@@ -907,16 +862,16 @@ namespace ElGato_API.Services
                     CardioStatistics = cardioStatsTask.Result.data
                 };
 
-                return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess"});
+                return (vmo, ErrorResponse.Ok());
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get user profile data. UserId: {userId} Method: {nameof(GetUserProfileData)}");
-                return (new UserProfileDataVMO(), new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false });
+                return (new UserProfileDataVMO(), ErrorResponse.Internal(ex.Message));
             }
         }
 
-        private async Task<(GeneralProfileData data, BasicErrorResponse error)> GetGeneralProfileData(string userId)
+        private async Task<(GeneralProfileData data, ErrorResponse error)> GetGeneralProfileData(string userId)
         {
             try
             {
@@ -926,7 +881,7 @@ namespace ElGato_API.Services
                 var user = await context.AppUser.FirstOrDefaultAsync(a=>a.Id == userId);
                 if(user == null)
                 {
-                    return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, ErrorMessage = "User with given id not found.", Success = false});
+                    return (vmo, ErrorResponse.NotFound("User with given id not found."));
                 }
 
                 vmo.Pfp = user.Pfp;
@@ -936,16 +891,16 @@ namespace ElGato_API.Services
                 vmo.FollowersCounter = user.FollowersCount;
                 vmo.IsPrivate = user.IsProfilePrivate;
 
-                return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = $"Sucess"});
+                return (vmo, ErrorResponse.Ok());
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get general profile data for user. UserId: {userId} Method: {nameof(GetGeneralProfileData)}");
-                return (new GeneralProfileData(), new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false });
+                return (new GeneralProfileData(), ErrorResponse.Internal(ex.Message));
             }
         }
 
-        private async Task<(List<EarnedBadges> data, BasicErrorResponse error)> GetUserEarnedBadges(string userId)
+        private async Task<(List<EarnedBadges> data, ErrorResponse error)> GetUserEarnedBadges(string userId)
         {
             try
             {
@@ -955,7 +910,7 @@ namespace ElGato_API.Services
                 var user = await context.AppUser.Include(a => a.UserBadges).ThenInclude(ub => ub.Challange).Include(a => a.Achievments).FirstOrDefaultAsync(a => a.Id == userId);
                 if (user == null)
                 {
-                    return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, ErrorMessage = "User with given id not found.", Success = false });
+                    return (vmo, ErrorResponse.NotFound("User with given id not found."));
                 }
 
                 if (user.UserBadges != null)
@@ -999,16 +954,16 @@ namespace ElGato_API.Services
                     }
                 }
 
-                return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" });
+                return (vmo, ErrorResponse.Ok());
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get user earned badges and achievments data. UserId: {userId} Method: {nameof(GetUserEarnedBadges)}");
-                return (new List<EarnedBadges>(), new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, Success = false, ErrorMessage = $"An error occured: {ex.Message}"});
+                return (new List<EarnedBadges>(), ErrorResponse.Internal(ex.Message));
             }
         }
 
-        private async Task<(List<RecentCardioActivity> data, BasicErrorResponse error)> GetUserRecentCardioActivity(string userId, int limit = 15)
+        private async Task<(List<RecentCardioActivity> data, ErrorResponse error)> GetUserRecentCardioActivity(string userId, int limit = 15)
         {
             try
             {
@@ -1080,16 +1035,16 @@ namespace ElGato_API.Services
                     }
                 }
 
-                return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" });
+                return (vmo, ErrorResponse.Ok());
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get recent cardio activity for user. UserId: {userId} Method: {nameof(GetUserRecentCardioActivity)}");
-                return (new List<RecentCardioActivity>(), new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false});
+                return (new List<RecentCardioActivity>(), ErrorResponse.Internal(ex.Message));
             }
         }
 
-        private async Task<(List<RecentCardioActivity> data, BasicErrorResponse error)> GetUserBestCardioActivities(string userId)
+        private async Task<(List<RecentCardioActivity> data, ErrorResponse error)> GetUserBestCardioActivities(string userId)
         {
             try
             {
@@ -1151,16 +1106,16 @@ namespace ElGato_API.Services
                     SpeedInTime = item.Training.SpeedInTime ?? new List<SpeedInTime>(),
                 }).ToList();
 
-                return (vmo, new BasicErrorResponse { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Success" });
+                return (vmo, ErrorResponse.Ok());
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get best cardio activity for user. UserId: {userId} Method: {nameof(GetUserBestCardioActivities)}");
-                return (new List<RecentCardioActivity>(), new BasicErrorResponse { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occurred: {ex.Message}", Success = false });
+                return (new List<RecentCardioActivity>(), ErrorResponse.Internal(ex.Message));
             }
         }
 
-        private async Task<(List<LiftData> data, BasicErrorResponse error)> GetUserRecentLiftActivities(string userId, int limit = 10)
+        private async Task<(List<LiftData> data, ErrorResponse error)> GetUserRecentLiftActivities(string userId, int limit = 10)
         {
             try
             {
@@ -1210,16 +1165,16 @@ namespace ElGato_API.Services
                     }
                 }
 
-                return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" });
+                return (vmo, ErrorResponse.Ok());
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get user recent lift activities. UserId: {userId} Method: {nameof(GetUserRecentLiftActivities)}");
-                return (new List<LiftData>(), new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, Success = false, ErrorMessage = $"An error occured: {ex.Message}" });
+                return (new List<LiftData>(), ErrorResponse.Internal(ex.Message));
             }
         }
 
-        private async Task<(List<BestLiftData> data, BasicErrorResponse error)> GetUserBestLifts(string userId)
+        private async Task<(List<BestLiftData> data, ErrorResponse error)> GetUserBestLifts(string userId)
         {
             try
             {
@@ -1276,16 +1231,16 @@ namespace ElGato_API.Services
                     }
                 }
 
-                return (bestLifts.Values.ToList(), new BasicErrorResponse {  ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" });
+                return (bestLifts.Values.ToList(), ErrorResponse.Ok());
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get user best lifts data. UserId: {userId} Method: {nameof(GetUserBestLifts)}");
-                return (new List<BestLiftData>(), new BasicErrorResponse() { ErrorMessage = $"An error occured: {ex.Message}", Success = false });
+                return (new List<BestLiftData>(), ErrorResponse.Internal(ex.Message));
             }
         }
 
-        private async Task<(Statistics data, BasicErrorResponse error)> GetUserStatistics(string userId)
+        private async Task<(Statistics data, ErrorResponse error)> GetUserStatistics(string userId)
         {
             try
             {
@@ -1299,7 +1254,7 @@ namespace ElGato_API.Services
                     if (newDoc == null)
                     {
                         _logger.LogCritical($"Unable to create new statistics document for user. UserId: {userId} Method: {nameof(GetUserStatistics)}");
-                        return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, ErrorMessage = "Couldnt find statistics for user.", Success = false });
+                        return (vmo, ErrorResponse.NotFound("Couldnt find statistics for user."));
                     }
 
                     userStatisticsCollection = newDoc;
@@ -1329,12 +1284,12 @@ namespace ElGato_API.Services
                 vmo.AllTime.TotalDistanceKm = userStatisticsCollection.TotalDistanceCounter;
                 vmo.AllTime.WeightKg = userStatisticsCollection.TotalWeightLiftedCounter;
 
-                return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" });
+                return (vmo, ErrorResponse.Ok());
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get user statistics. UserId: {userId} Method: {nameof(GetUserStatistics)}");
-                return (new Statistics(), new BasicErrorResponse() { Success = false, ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}" });
+                return (new Statistics(), ErrorResponse.Internal(ex.Message));
             }
         }
 
@@ -1363,7 +1318,7 @@ namespace ElGato_API.Services
             }
         }
 
-        private async Task<(CardioTrainingStatistics data, BasicErrorResponse error)> GetCardioTrainingStatistics(string userId)
+        private async Task<(CardioTrainingStatistics data, ErrorResponse error)> GetCardioTrainingStatistics(string userId)
         {
             try
             {
@@ -1415,16 +1370,16 @@ namespace ElGato_API.Services
 
                 vmo.Activities = groupedStats;
 
-                return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess", Success = true});
+                return (vmo, ErrorResponse.Ok());
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get user statistics for spec cardio. UserId: {userId} Method: {nameof(GetCardioTrainingStatistics)}");
-                return (new CardioTrainingStatistics(), new BasicErrorResponse() { Success = false, ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}" });
+                return (new CardioTrainingStatistics(), ErrorResponse.Internal(ex.Message));
             }
         }
 
-        public async Task<(FollowersRequestVMO data, BasicErrorResponse erro)> GetFollowersRequests(string userId)
+        public async Task<(FollowersRequestVMO data, ErrorResponse erro)> GetFollowersRequests(string userId)
         {
             try
             {
@@ -1443,31 +1398,31 @@ namespace ElGato_API.Services
                     }).ToList();
                 }
 
-                return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" });
+                return (vmo, ErrorResponse.Ok());
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get user follower request list. UserId: {userId} Method: {nameof(GetFollowersRequests)}");
-                return (new FollowersRequestVMO(), new BasicErrorResponse() { Success = false, ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}" });
+                return (new FollowersRequestVMO(), ErrorResponse.Internal(ex.Message));
             }
         }
 
-        public async Task<(BasicErrorResponse error, string profilePcitrue)> GetUserProfilePicture(string userId)
+        public async Task<(ErrorResponse error, string profilePcitrue)> GetUserProfilePicture(string userId)
         {
             try
             {
                 var user = await _context.AppUser.FirstOrDefaultAsync(a => a.Id == userId);
                 if(user == null)
                 {
-                    return (new BasicErrorResponse() { Success = false, ErrorCode = ErrorCodes.NotFound, ErrorMessage = "User not found."}, String.Empty);
+                    return (ErrorResponse.NotFound("User not found."), String.Empty);
                 }
 
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" }, user.Pfp);
+                return (ErrorResponse.Ok(), user.Pfp);
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get user profile picture. UserId: {userId} Method: {nameof(GetUserProfilePicture)}");
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false }, String.Empty);
+                return (ErrorResponse.Internal(ex.Message), String.Empty);
             }
         }
     }

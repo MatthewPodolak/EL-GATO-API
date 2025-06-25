@@ -36,7 +36,7 @@ namespace ElGato_API.Services
             _context = context;
         }
 
-        public async Task<(List<SimpleMealVMO> res, BasicErrorResponse error)> GetByMainCategory(string userId, List<string> LikedMeals, List<string> SavedMeals, string? category, int? qty = 5, int? pageNumber = 1)
+        public async Task<(List<SimpleMealVMO> res, ErrorResponse error)> GetByMainCategory(string userId, List<string> LikedMeals, List<string> SavedMeals, string? category, int? qty = 5, int? pageNumber = 1)
         {
             List<SimpleMealVMO> res = new List<SimpleMealVMO>();
 
@@ -45,7 +45,7 @@ namespace ElGato_API.Services
                 using (var _context = _contextFactory.CreateDbContext())
                 {
                     if (string.IsNullOrWhiteSpace(category))
-                        return (res, new BasicErrorResponse() { Success = false, ErrorMessage = "Category is required" });
+                        return (res, ErrorResponse.StateNotValid<string>("Category is required"));
 
                     var filter = Builders<MealsDocument>.Filter.Regex(meal => meal.Categories, new MongoDB.Bson.BsonRegularExpression(category, "i"));
 
@@ -102,16 +102,16 @@ namespace ElGato_API.Services
                     }).ToList();
                 }
 
-                return (res, new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "" });
+                return (res, ErrorResponse.Ok());
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get data by main category. Method: {nameof(GetByMainCategory)}");
-                return (res, new BasicErrorResponse() { Success = false, ErrorMessage = $"Internal server error {ex.Message}", ErrorCode = ErrorCodes.Internal });
+                return (res, ErrorResponse.Internal(ex.Message));
             }
         }
 
-        public async Task<(List<SimpleMealVMO> res, BasicErrorResponse error)> GetByHighMakro(string userId, List<string> LikedMeals, List<string> SavedMeals, string makroComponent, int? qty = 5, int? pageNumber = 1)
+        public async Task<(List<SimpleMealVMO> res, ErrorResponse error)> GetByHighMakro(string userId, List<string> LikedMeals, List<string> SavedMeals, string makroComponent, int? qty = 5, int? pageNumber = 1)
         {
             List<SimpleMealVMO> res = new List<SimpleMealVMO>();
 
@@ -130,7 +130,7 @@ namespace ElGato_API.Services
                         filter = Builders<MealsDocument>.Filter.Gt(meal => meal.MealsMakro.Fats, 15);
                         break;
                     default:
-                        return (res, new BasicErrorResponse() { Success = false, ErrorMessage = "Invalid macro component." });
+                        return (res, ErrorResponse.StateNotValid<string>("Invalid macro component."));
                 }
 
                 var totalMatchingDocs = await _mealsCollection.CountDocumentsAsync(filter);
@@ -188,16 +188,16 @@ namespace ElGato_API.Services
                     }).ToList();
                 }
 
-                return (res, new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "" });
+                return (res, ErrorResponse.Ok());
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get meal data by makro. Method: {nameof(GetByHighMakro)}");
-                return (res, new BasicErrorResponse() { Success = false, ErrorMessage = $"Internal server error {ex.Message}", ErrorCode = ErrorCodes.Internal });
+                return (res, ErrorResponse.Internal(ex.Message));
             }
         }
 
-        public async Task<(List<SimpleMealVMO> res, BasicErrorResponse error)> GetByLowMakro(string userId, List<string> LikedMeals, List<string> SavedMeals, string makroComponent, int? qty = 5, int? pageNumber = 1)
+        public async Task<(List<SimpleMealVMO> res, ErrorResponse error)> GetByLowMakro(string userId, List<string> LikedMeals, List<string> SavedMeals, string makroComponent, int? qty = 5, int? pageNumber = 1)
         {
             List<SimpleMealVMO> res = new List<SimpleMealVMO>();
 
@@ -216,7 +216,7 @@ namespace ElGato_API.Services
                         filter = Builders<MealsDocument>.Filter.Lt(meal => meal.MealsMakro.Fats, 5);
                         break;
                     default:
-                        return (res, new BasicErrorResponse() { Success = false, ErrorMessage = "Invalid macro component." });
+                        return (res, ErrorResponse.StateNotValid<string>("Invalid macro component."));
                 }
 
                 var totalMatchingDocs = await _mealsCollection.CountDocumentsAsync(filter);
@@ -274,16 +274,16 @@ namespace ElGato_API.Services
                     }).ToList();
                 }
 
-                return (res, new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "" });
+                return (res, ErrorResponse.Ok());
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get meal data by makro. Method: {nameof(GetByLowMakro)}");
-                return (res, new BasicErrorResponse() { Success = false, ErrorMessage = $"Internal server error {ex.Message}" , ErrorCode = ErrorCodes.Internal });
+                return (res, ErrorResponse.Internal(ex.Message));
             }
         }
 
-        public async Task<(List<SimpleMealVMO> res, BasicErrorResponse error)> GetMostLiked(string userId, List<string> LikedMeals, List<string> SavedMeals, int? qty = 5, int? pageNumber = 1)
+        public async Task<(List<SimpleMealVMO> res, ErrorResponse error)> GetMostLiked(string userId, List<string> LikedMeals, List<string> SavedMeals, int? qty = 5, int? pageNumber = 1)
         {
             List<SimpleMealVMO> res = new List<SimpleMealVMO>();
 
@@ -333,16 +333,16 @@ namespace ElGato_API.Services
                     }).ToList();
                 }
 
-                return (res, new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "" });
+                return (res, ErrorResponse.Ok());
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get data by liked nm. Method: {nameof(GetMostLiked)}");
-                return (res, new BasicErrorResponse() { Success = false, ErrorMessage = $"Internal server error {ex.Message}", ErrorCode = ErrorCodes.Internal });
+                return (res, ErrorResponse.Internal(ex.Message));
             }
         }
 
-        public async Task<(List<SimpleMealVMO> res, BasicErrorResponse error)> GetRandom(string userId, List<string> LikedMeals,List<string> SavedMeals,int? qty = 5, int? pageNumber = 1)
+        public async Task<(List<SimpleMealVMO> res, ErrorResponse error)> GetRandom(string userId, List<string> LikedMeals,List<string> SavedMeals,int? qty = 5, int? pageNumber = 1)
         {
             List<SimpleMealVMO> res = new List<SimpleMealVMO>();
 
@@ -389,16 +389,16 @@ namespace ElGato_API.Services
                     }).ToList();
                 }
 
-                return (res, new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "" });
+                return (res, ErrorResponse.Ok());
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get random data. Method: {nameof(GetRandom)}");
-                return (res, new BasicErrorResponse() { Success = false, ErrorMessage = $"Internal server error {ex.Message}", ErrorCode = ErrorCodes.Internal });
+                return (res, ErrorResponse.Internal(ex.Message));
             }
         }
 
-        public async Task<(MealLikesDocument res, BasicErrorResponse error)> GetUserMealLikeDoc(string userId)
+        public async Task<(MealLikesDocument res, ErrorResponse error)> GetUserMealLikeDoc(string userId)
         {
             MealLikesDocument res = new MealLikesDocument();
 
@@ -410,20 +410,20 @@ namespace ElGato_API.Services
                 if (doc != null)
                 {
                     res = doc;
-                    return (res, new BasicErrorResponse() { Success = true });
+                    return (res, ErrorResponse.Ok());
                 }
 
                 _logger.LogWarning($"User liked-meals document not found. UserId: {userId} Method: {nameof(GetUserMealLikeDoc)}");
-                return (res, new BasicErrorResponse() { Success = false, ErrorMessage = "User Likes doc not found,," });
+                return (res, ErrorResponse.NotFound("User Likes doc not found"));
             }
             catch (Exception ex) 
             {
                 _logger.LogError($"Failed while trying to get user liked-meals doc. UserId: {userId} Method: {nameof(GetUserMealLikeDoc)}");
-                return (res, new BasicErrorResponse() { Success = false, ErrorMessage = $"Internal server error {ex.Message}" });
+                return (res, ErrorResponse.Internal(ex.Message));
             }
         }
 
-        public async Task<BasicErrorResponse> LikeMeal(string userId, string mealId)
+        public async Task<ErrorResponse> LikeMeal(string userId, string mealId)
         {
             try
             {
@@ -437,7 +437,7 @@ namespace ElGato_API.Services
                 if (mealDoc == null)
                 {
                     _logger.LogWarning($"meal not found. UserId: {userId} Method: {nameof(LikeMeal)}");
-                    return new BasicErrorResponse { Success = false, ErrorMessage = "Meal not found", ErrorCode = ErrorCodes.NotFound };
+                    return ErrorResponse.NotFound("Meal not found");
                 }
 
                 int likeCounter = mealDoc.LikedCounter;
@@ -457,7 +457,7 @@ namespace ElGato_API.Services
                     var xmealUpdate = Builders<MealsDocument>.Update.Set(x => x.LikedCounter, likeCounter);
                     await _mealsCollection.UpdateOneAsync(mealFilter, xmealUpdate);
 
-                    return new BasicErrorResponse { Success = true };
+                    return ErrorResponse.Ok();
                 }
 
                 if (doc.LikedMeals.Contains(mealId))
@@ -476,17 +476,17 @@ namespace ElGato_API.Services
                 var mealUpdate = Builders<MealsDocument>.Update.Set(x => x.LikedCounter, likeCounter);
                 await _mealsCollection.UpdateOneAsync(mealFilter, mealUpdate);
 
-                return new BasicErrorResponse { Success = true };
+                return ErrorResponse.Ok();
 
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to like meal. UserId: {userId} MealId: {mealId} Method: {nameof(LikeMeal)}");
-                return new BasicErrorResponse { Success = false, ErrorMessage = $"Internal server error {ex.Message}", ErrorCode = ErrorCodes.Internal};
+                return ErrorResponse.Internal(ex.Message);
             }
         }
 
-        public async Task<BasicErrorResponse> SaveMeal(string userId, string mealId)
+        public async Task<ErrorResponse> SaveMeal(string userId, string mealId)
         {
             try
             {
@@ -504,7 +504,7 @@ namespace ElGato_API.Services
                     var newDoc = await _helperService.CreateMissingDoc(userId, _mealsCollection);
                     if(newDoc == null)
                     {
-                        return new BasicErrorResponse { Success = false, ErrorMessage = "Meal not found", ErrorCode = ErrorCodes.NotFound };
+                        return ErrorResponse.NotFound("Meal not found");
                     }
 
                     mealDoc = newDoc;
@@ -527,7 +527,7 @@ namespace ElGato_API.Services
                     var xmealUpdate = Builders<MealsDocument>.Update.Set(x => x.SavedCounter, saveCounter);
                     await _mealsCollection.UpdateOneAsync(mealFilter, xmealUpdate);
 
-                    return new BasicErrorResponse { Success = true };
+                    return ErrorResponse.Ok();
                 }
 
                 if (doc.SavedMeals.Contains(mealId))
@@ -546,16 +546,16 @@ namespace ElGato_API.Services
                 var mealUpdate = Builders<MealsDocument>.Update.Set(x => x.SavedCounter, saveCounter);
                 await _mealsCollection.UpdateOneAsync(mealFilter, mealUpdate);
 
-                return new BasicErrorResponse { Success = true };
+                return ErrorResponse.Ok();
             }
             catch (Exception ex) 
             {
                 _logger.LogError(ex, $"Failed while trying to save meal. UserId: {userId} MealId: {mealId} Method: {nameof(SaveMeal)}");
-                return new BasicErrorResponse { Success = false, ErrorMessage = $"Interna lserver error {ex.Message}", ErrorCode = ErrorCodes.Internal };
+                return ErrorResponse.Internal(ex.Message);
             }
         }
 
-        public async Task<(BasicErrorResponse error, List<SimpleMealVMO> res)> Search(string userId, SearchMealVM model)
+        public async Task<(ErrorResponse error, List<SimpleMealVMO> res)> Search(string userId, SearchMealVM model)
         {
             List<SimpleMealVMO> res = new List<SimpleMealVMO>();
             Dictionary<string, UserData> users = new Dictionary<string, UserData>();
@@ -667,19 +667,19 @@ namespace ElGato_API.Services
                     Own = meal.UserId == userId
                 }).ToList();
 
-                return (new BasicErrorResponse() { Success = true }, res);
+                return (ErrorResponse.Ok(), res);
 
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Faile while trying to perform meal search. Data: {model} Method: {nameof(Search)}");
-                return (new BasicErrorResponse() { Success = false, ErrorMessage = $"error: {ex.Message}", ErrorCode = ErrorCodes.Internal }, res);
+                return (ErrorResponse.Internal(ex.Message), res);
             }
         }
 
 
 
-        public async Task<(BasicErrorResponse error, List<SimpleMealVMO> res)> GetUserLikedMeals(string userId)
+        public async Task<(ErrorResponse error, List<SimpleMealVMO> res)> GetUserLikedMeals(string userId)
         {
             List<SimpleMealVMO> res = new List<SimpleMealVMO>();
 
@@ -694,7 +694,7 @@ namespace ElGato_API.Services
                     var newDoc = await _helperService.CreateMissingDoc(userId, _mealLikesCollection);
                     if(newDoc == null)
                     {
-                        return (new BasicErrorResponse() { Success = false, ErrorMessage = "User likes document not found.", ErrorCode = ErrorCodes.NotFound }, res);
+                        return (ErrorResponse.NotFound("User likes document not found."), res);
                     }
 
                     doc = newDoc;
@@ -706,7 +706,7 @@ namespace ElGato_API.Services
 
                 if (likedMeals == null || !likedMeals.Any())
                 {
-                    return (new BasicErrorResponse() { Success = false, ErrorMessage = "No meals found for liked meals.", ErrorCode = ErrorCodes.NotFound }, res);
+                    return (ErrorResponse.NotFound("No meals found for liked meals."), res);
                 }
 
                 var userIds = likedMeals.Select(meal => meal.UserId).Distinct().ToList();
@@ -743,17 +743,17 @@ namespace ElGato_API.Services
                     }).ToList();
                 }
 
-                return (new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Meals retrived sucesfully" }, res);
+                return (ErrorResponse.Ok(), res);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get user liked meals. UserId: {userId} Method: {nameof(GetUserLikedMeals)}");
-                return (new BasicErrorResponse() { Success = false, ErrorMessage = $"Something went wrong: {ex.Message}", ErrorCode= ErrorCodes.Internal }, res);
+                return (ErrorResponse.Internal(ex.Message), res);
             }
         }
 
 
-        public async Task<(BasicErrorResponse error, List<SimpleMealVMO> res)> GetUserSavedMeals(string userId)
+        public async Task<(ErrorResponse error, List<SimpleMealVMO> res)> GetUserSavedMeals(string userId)
         {
             List<SimpleMealVMO> res = new List<SimpleMealVMO>();
 
@@ -768,7 +768,7 @@ namespace ElGato_API.Services
                     var newDoc = await _helperService.CreateMissingDoc(userId, _mealLikesCollection);
                     if(newDoc == null)
                     {
-                        return (new BasicErrorResponse() { Success = false, ErrorMessage = "User saved document is null.", ErrorCode = ErrorCodes.NotFound }, res);
+                        return (ErrorResponse.NotFound("User saved document is null."), res);
                     }
 
                     doc = newDoc;
@@ -780,7 +780,7 @@ namespace ElGato_API.Services
 
                 if (savedMeals == null || !savedMeals.Any())
                 {
-                    return (new BasicErrorResponse() { Success = false, ErrorMessage = "No meals found for saved meals.", ErrorCode = ErrorCodes.NotFound }, res);
+                    return (ErrorResponse.NotFound("No meals found for saved meals."), res);
                 }
 
                 var userIds = savedMeals.Select(meal => meal.UserId).Distinct().ToList();
@@ -817,16 +817,16 @@ namespace ElGato_API.Services
                     }).ToList();
                 }
 
-                return (new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Meals retrived sucesfully" }, res);
+                return (ErrorResponse.Ok(), res);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get user saved meals. UserId: {userId} Method: {GetUserSavedMeals}");
-                return (new BasicErrorResponse() { Success = false, ErrorMessage = $"Something went wrong: {ex.Message}", ErrorCode = ErrorCodes.Internal }, res);
+                return (ErrorResponse.Internal(ex.Message), res);
             }
         }
 
-        public async Task<(BasicErrorResponse error, AchievmentResponse? ach)> ProcessAndPublishMeal(string userId, PublishMealVM model)
+        public async Task<(ErrorResponse error, AchievmentResponse? ach)> ProcessAndPublishMeal(string userId, PublishMealVM model)
         {
             try
             {
@@ -900,24 +900,24 @@ namespace ElGato_API.Services
                 if (!currentAchievmentCounter.error.Success) 
                 {
                     _logger.LogError($"Failed while trying to get achievment. UserId: {userId} Data: {model} Method: {nameof(ProcessAndPublishMeal)}");
-                    return (new BasicErrorResponse() { Success = false, ErrorMessage = $"Something went wrong while trying to get current achievment. {currentAchievmentCounter.error.ErrorMessage}", ErrorCode = ErrorCodes.Failed }, null); 
+                    return (ErrorResponse.Failed($"Something went wrong while trying to get current achievment. {currentAchievmentCounter.error.ErrorMessage}"), null); 
                 }
 
                 if (!string.IsNullOrEmpty(currentAchievmentCounter.achievmentName))
                 {
                     var achievmentRes = await _achievmentService.IncrementAchievmentProgress(currentAchievmentCounter.achievmentName, userId, 1);
-                    if (!achievmentRes.error.Success) { return (new BasicErrorResponse() { Success = false, ErrorMessage = achievmentRes.error.ErrorMessage, ErrorCode = ErrorCodes.Failed }, null); }
+                    if (!achievmentRes.error.Success) { return (new ErrorResponse() { Success = false, ErrorMessage = achievmentRes.error.ErrorMessage, ErrorCode = ErrorCodes.Failed }, null); }
 
-                    return (new BasicErrorResponse() { Success = true }, achievmentRes.ach ?? new AchievmentResponse() { Status = new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess" } });
+                    return (ErrorResponse.Ok(), achievmentRes.ach ?? new AchievmentResponse() { Status = ErrorResponse.Ok() });
                 }
              
-                return (new BasicErrorResponse() { Success = true }, null);
+                return (ErrorResponse.Ok(), null);
 
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to publish meal. UserId: {userId} Data: {model} Method: {nameof(ProcessAndPublishMeal)}");
-                return (new BasicErrorResponse() { Success = false, ErrorMessage = ex.Message, ErrorCode = ErrorCodes.Internal }, null);
+                return (ErrorResponse.Internal(ex.Message), null);
             }
         }
 
@@ -974,14 +974,14 @@ namespace ElGato_API.Services
 
         }
 
-        public async Task<(BasicErrorResponse error, List<SimpleMealVMO>? res)> GetOwnMeals(string userId, List<string> LikedMeals, List<string> SavedMeals)
+        public async Task<(ErrorResponse error, List<SimpleMealVMO>? res)> GetOwnMeals(string userId, List<string> LikedMeals, List<string> SavedMeals)
         {
             try
             {
                 var ownMealDosc = await _ownMealCollection.Find(r => r.UserId == userId).FirstOrDefaultAsync();
                 if(ownMealDosc == null)
                 {
-                    return (new BasicErrorResponse() { Success = true }, null);
+                    return (ErrorResponse.Ok(), null);
                 }
 
                 var ownMeals = await _mealsCollection.Find(a => ownMealDosc.OwnMealsId.Contains(a.Id.ToString())).ToListAsync();
@@ -1020,18 +1020,18 @@ namespace ElGato_API.Services
                         Own = meal.UserId == userId
                     }).ToList();
 
-                    return (new BasicErrorResponse() { Success = true }, res);
+                    return (ErrorResponse.Ok(), res);
                 }
 
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to GetOwnMeals. UserId: {userId} Method: {nameof(GetOwnMeals)}");
-                return (new BasicErrorResponse() { Success = false, ErrorMessage = ex.Message, ErrorCode = ErrorCodes.Internal }, null);
+                return (ErrorResponse.Internal(ex.Message), null);
             }
         }
 
-        public async Task<BasicErrorResponse> DeleteMeal(string userId, ObjectId mealId)
+        public async Task<ErrorResponse> DeleteMeal(string userId, ObjectId mealId)
         {
             try
             {
@@ -1043,7 +1043,7 @@ namespace ElGato_API.Services
                     var newDoc = await _helperService.CreateMissingDoc(userId, _mealsCollection);
                     if(newDoc == null)
                     {
-                        return new BasicErrorResponse() { Success = false, ErrorMessage = "Couldn't find meal with given id", ErrorCode = ErrorCodes.NotFound };
+                        return ErrorResponse.NotFound("Couldn't find meal with given id");
                     }
 
                     mealDoc = newDoc;
@@ -1052,29 +1052,29 @@ namespace ElGato_API.Services
                 if (mealDoc.UserId != userId) 
                 {
                     _logger.LogInformation($"User {userId} tried to delete someone else's meal. Method: {nameof(DeleteMeal)}");
-                    return new BasicErrorResponse() { Success = false, ErrorMessage = "Permission denied. Given meal is not created by the user.", ErrorCode = ErrorCodes.Forbidden };
+                    return ErrorResponse.Forbidden("Permission denied. Given meal is not created by the user.");
                 }
 
                 var deleteResult = await _mealsCollection.DeleteOneAsync(r => r.Id == mealId);
 
                 if (deleteResult.DeletedCount > 0)
                 {
-                    return new BasicErrorResponse() { Success = true };
+                    return ErrorResponse.Ok();
                 }
                 else
                 {
                     _logger.LogError($"Mongo update failed while trying to delete meal. UserId: {userId} MealId: {mealId} Method: {nameof(DeleteMeal)}");
-                    return new BasicErrorResponse() { Success = false, ErrorMessage = "Failed to delete the meal", ErrorCode = ErrorCodes.Failed };
+                    return ErrorResponse.Failed();
                 }
             }
             catch (Exception ex) 
             {
                 _logger.LogError(ex, $"Failed while trying to delete meal. UserId: {userId} MealId: {mealId} Method: {nameof(DeleteMeal)}");
-                return new BasicErrorResponse() { Success = false, ErrorMessage = ex.Message, ErrorCode = ErrorCodes.Internal };
+                return ErrorResponse.Internal(ex.Message);
             }
         }
 
-        public async Task<(List<SimpleMealVMO> data, BasicErrorResponse error)> GetUserRecipes(string userId, int count, int skip, List<string> LikedMeals, List<string> SavedMeals)
+        public async Task<(List<SimpleMealVMO> data, ErrorResponse error)> GetUserRecipes(string userId, int count, int skip, List<string> LikedMeals, List<string> SavedMeals)
         {
             try
             {
@@ -1084,13 +1084,13 @@ namespace ElGato_API.Services
                 if(user == null)
                 {
                     _logger.LogWarning($"Tried to acess non-existing user. UserId: {userId} Method: {nameof(GetUserRecipes)}");
-                    return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, Success = false, ErrorMessage = "User does not exists." });
+                    return (vmo, ErrorResponse.NotFound("User does not exists."));
                 }
 
                 var ownMealDosc = await _ownMealCollection.Find(r => r.UserId == userId).FirstOrDefaultAsync();
                 if (ownMealDosc == null)
                 {
-                    return (vmo, new BasicErrorResponse() { Success = true, ErrorMessage = "Sucess, empty.", ErrorCode = ErrorCodes.None });
+                    return (vmo, ErrorResponse.Ok("Empty"));
                 }
 
                 var paginatedMeals = await _mealsCollection.Find(a => ownMealDosc.OwnMealsId.Contains(a.Id.ToString())).Skip(skip).Limit(count).ToListAsync();
@@ -1119,12 +1119,12 @@ namespace ElGato_API.Services
                     Own = meal.UserId == userId
                 }).ToList();
 
-                return (vmo, new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" });
+                return (vmo, ErrorResponse.Ok());
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get user recipes. UserId: {userId} Method: {nameof(GetUserRecipes)}");
-                return (new List<SimpleMealVMO>(), new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, Success = false, ErrorMessage = $"An error occured: {ex.Message}"});
+                return (new List<SimpleMealVMO>(), ErrorResponse.Internal(ex.Message));
             }
         }
 

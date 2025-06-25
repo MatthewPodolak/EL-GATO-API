@@ -26,20 +26,15 @@ namespace ElGato_API.Controllers
         [HttpGet]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(UserSearchVMO), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> SearchForUsers(string query, int limit = 10)
         {
             try
             {
                 if (string.IsNullOrEmpty(query))
                 {
-                    return StatusCode(400, new BasicErrorResponse()
-                    {
-                        ErrorCode = ErrorCodes.ModelStateNotValid,
-                        ErrorMessage = "Query is empty. Provide at least one char.",
-                        Success = false
-                    });
+                    return StatusCode(400, ErrorResponse.StateNotValid<string>());
                 }
 
                 var userId = _jwtService.GetUserIdClaim();
@@ -58,17 +53,17 @@ namespace ElGato_API.Controllers
             }
             catch(Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured {ex.Message}", Success = false });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
         [HttpGet]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(UserProfileDataVMO), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetUserProfile(string? userId)
         {
             try
@@ -99,9 +94,9 @@ namespace ElGato_API.Controllers
                     switch (isAcessible.UnacessilibityReason)
                     {
                         case UnacessilibityReason.Other:
-                            return StatusCode(403, new BasicErrorResponse() { ErrorCode = ErrorCodes.Forbidden, ErrorMessage = "Acess forbidden.", Success = false });
+                            return StatusCode(403, ErrorResponse.Forbidden());
                         case UnacessilibityReason.Blocked:
-                            return StatusCode(403, new BasicErrorResponse() { ErrorCode = ErrorCodes.Forbidden, ErrorMessage = "Acess forbidden.", Success = false });
+                            return StatusCode(403, ErrorResponse.Forbidden());
                         case UnacessilibityReason.Private:
                             canUserAcessFullData = false;
                             break;
@@ -123,16 +118,16 @@ namespace ElGato_API.Controllers
             }
             catch(Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured {ex.Message}", Success = false });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
         [HttpGet]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetUserProfilePicture(string? userId = null)
         {
             try
@@ -159,17 +154,17 @@ namespace ElGato_API.Controllers
             }
             catch(Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured {ex.Message}", Success = false });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
         [HttpGet]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(UserFollowersVMO), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetUserFollowers(string? userId = null, bool? onlyFollowed = false)
         {
             try
@@ -182,12 +177,7 @@ namespace ElGato_API.Controllers
                 var userExists = await _communityService.UserExists(userId);
                 if (!userExists)
                 {
-                    return NotFound(new BasicErrorResponse()
-                    {
-                        ErrorCode = ErrorCodes.NotFound,
-                        Success = false,
-                        ErrorMessage = $"User with id: {userId} does not exists."
-                    });
+                    return NotFound(ErrorResponse.NotFound($"User with id: {userId} does not exists."));
                 }
 
                 var askingUserId = _jwtService.GetUserIdClaim();
@@ -196,12 +186,7 @@ namespace ElGato_API.Controllers
                     var canAcess = await _communityService.CheckIfProfileIsAcessibleForUser(userId, askingUserId);
                     if (!canAcess.Acessible)
                     {
-                        return StatusCode(403, new BasicErrorResponse()
-                        {
-                            ErrorCode = ErrorCodes.Forbidden,
-                            ErrorMessage = $"Acess forbidden - {canAcess.UnacessilibityReason}",
-                            Success = false
-                        });
+                        return StatusCode(403, ErrorResponse.Forbidden($"Acess forbidden - {canAcess.UnacessilibityReason}"));
                     }
                 }
 
@@ -220,16 +205,16 @@ namespace ElGato_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured {ex.Message}", Success = false });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
         [HttpGet]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(BlockListVMO), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetBlockList()
         {
             try
@@ -251,16 +236,16 @@ namespace ElGato_API.Controllers
             }
             catch(Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured {ex.Message}", Success = false });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
         [HttpGet]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(FollowersRequestVMO), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetFollowersRequests()
         {
             try
@@ -282,16 +267,16 @@ namespace ElGato_API.Controllers
             }
             catch(Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured {ex.Message}", Success = false });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
         [HttpGet]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(FriendsLeaderboardVMO), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetFriendsLeaderboards()
         {
             try
@@ -313,29 +298,24 @@ namespace ElGato_API.Controllers
             }
             catch(Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured {ex.Message}", Success = false });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
         [HttpPost]
         [Authorize(Policy = "user")]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> RespondToFollowRequest([FromBody] RespondToFollowVM model)
         {
             try
             {
                 if (!ModelState.IsValid)
                 {
-                    return StatusCode(400, new BasicErrorResponse()
-                    {
-                        ErrorCode = ErrorCodes.ModelStateNotValid,
-                        ErrorMessage = $"Model state not valid. Please check {nameof(RespondToFollowRequest)}",
-                        Success = false
-                    });
+                    return StatusCode(400, ErrorResponse.StateNotValid<RespondToFollowVM>());
                 }
 
                 var userId = _jwtService.GetUserIdClaim();
@@ -356,53 +336,37 @@ namespace ElGato_API.Controllers
             }
             catch(Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured {ex.Message}", Success = false });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
         [HttpPost]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> FollowUser(string userToFollowId)
         {
             try
             {
                 if (string.IsNullOrEmpty(userToFollowId)) 
                 {
-                    return StatusCode(400, new BasicErrorResponse()
-                    {
-                        ErrorCode = ErrorCodes.ModelStateNotValid,
-                        ErrorMessage = "provide id of user to follow.",
-                        Success = false
-                    });
+                    return StatusCode(400, ErrorResponse.StateNotValid<string>());
                 }
 
                 var userId = _jwtService.GetUserIdClaim();
-                if(userId == userToFollowId) { return StatusCode(403, new BasicErrorResponse() { ErrorCode = ErrorCodes.Forbidden, ErrorMessage = "Can't follow urslf.", Success = false }); }
-
+                if (userId == userToFollowId) { return StatusCode(403, ErrorResponse.Forbidden("Can't perform follow action on yourself.")); };
                 var acessilibityCheck = await _communityService.CheckIfProfileIsAcessibleForUser(userId, userToFollowId);
                 if (!acessilibityCheck.Acessible)
                 {
                     switch (acessilibityCheck.UnacessilibityReason)
                     {
                         case UnacessilibityReason.Other:
-                            return StatusCode(403, new BasicErrorResponse()
-                            {
-                                ErrorCode = ErrorCodes.Forbidden,
-                                ErrorMessage = "Cannot perform that action.",
-                                Success = false
-                            });
+                            return StatusCode(403, ErrorResponse.Forbidden());
                         case UnacessilibityReason.Blocked:
-                            return StatusCode(403, new BasicErrorResponse()
-                            {
-                                ErrorCode = ErrorCodes.Forbidden,
-                                ErrorMessage = "User is blocked.",
-                                Success = false
-                            });
+                            return StatusCode(403, ErrorResponse.Forbidden("User is blocked."));
                         case UnacessilibityReason.Private:
                             var request = await _communityService.RequestFollow(userId, userToFollowId);
                             if (!request.Success)
@@ -434,33 +398,28 @@ namespace ElGato_API.Controllers
             }
             catch(Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured {ex.Message}", Success = false });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
         [HttpPost]
         [Authorize(Policy = "user")]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> UnFollowUser(string userToUnfollowId)
         {
             try
             {
                 if (string.IsNullOrEmpty(userToUnfollowId))
                 {
-                    return StatusCode(400, new BasicErrorResponse()
-                    {
-                        ErrorCode = ErrorCodes.ModelStateNotValid,
-                        ErrorMessage = "provide id of user to follow.",
-                        Success = false
-                    });
+                    return StatusCode(400, ErrorResponse.StateNotValid<string>());
                 }
 
                 var userId = _jwtService.GetUserIdClaim();
-                if (userId == userToUnfollowId) { return StatusCode(403, new BasicErrorResponse() { ErrorCode = ErrorCodes.Forbidden, ErrorMessage = "Can't unfollow urslf.", Success = false }); }
+                if (userId == userToUnfollowId) { return StatusCode(403, ErrorResponse.Forbidden()); }
 
                 var blockCheckTasks = new List<Task<bool>>
                 {
@@ -471,12 +430,7 @@ namespace ElGato_API.Controllers
 
                 if (blockedCheckResult[0] || blockedCheckResult[1])
                 {
-                    return StatusCode(403, new BasicErrorResponse()
-                    {
-                        ErrorCode = ErrorCodes.Forbidden,
-                        ErrorMessage = "User is blocked.",
-                        Success = false
-                    });
+                    return StatusCode(403, ErrorResponse.Forbidden("Blocked."));
                 }
 
                 var res = await _communityService.UnFollowUser(userId, userToUnfollowId);
@@ -494,38 +448,33 @@ namespace ElGato_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured {ex.Message}", Success = false });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
         [HttpPost]
         [Authorize(Policy = "user")]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> RemoveFollowRequest(string userIdToRemoveRequestFrom)
         {
             try
             {
                 if (string.IsNullOrEmpty(userIdToRemoveRequestFrom))
                 {
-                    return StatusCode(400, new BasicErrorResponse()
-                    {
-                        ErrorCode = ErrorCodes.ModelStateNotValid,
-                        ErrorMessage = "provide id of user to remove follow request.",
-                        Success = false
-                    });
+                    return StatusCode(400, ErrorResponse.StateNotValid<string>());
                 }
 
                 var userId = _jwtService.GetUserIdClaim();
-                if(userId == userIdToRemoveRequestFrom) { return StatusCode(403, new BasicErrorResponse() { ErrorCode = ErrorCodes.Forbidden, Success = false, ErrorMessage = "Can't remove follow request from yourself." }); }
+                if(userId == userIdToRemoveRequestFrom) { return StatusCode(403, ErrorResponse.Forbidden("Can't perform unfollow on yourself.")); }
 
                 var blocked = await _communityService.CheckIfUserIsBlocking(userId, userIdToRemoveRequestFrom);
                 if (blocked)
                 {
-                    return StatusCode(403, new BasicErrorResponse() { ErrorCode = ErrorCodes.Forbidden, ErrorMessage = "User is blocked.", Success = false });
+                    return StatusCode(403, ErrorResponse.Forbidden("User is blocked."));
                 }
 
                 var res = await _communityService.RemoveFollowRequest(userId, userIdToRemoveRequestFrom);
@@ -543,33 +492,28 @@ namespace ElGato_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured {ex.Message}", Success = false });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
         [HttpPost]
         [Authorize(Policy = "user")]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> BlockUser(string userToBlockId)
         {
             try
             {
                 if (string.IsNullOrEmpty(userToBlockId))
                 {
-                    return StatusCode(400, new BasicErrorResponse()
-                    {
-                        ErrorCode = ErrorCodes.ModelStateNotValid,
-                        ErrorMessage = "provide id of user to follow.",
-                        Success = false
-                    });
+                    return StatusCode(403, ErrorResponse.StateNotValid<string>());
                 }
 
                 var userId = _jwtService.GetUserIdClaim();
-                if(userId == userToBlockId) { return StatusCode(403, new BasicErrorResponse() { ErrorCode = ErrorCodes.Forbidden, ErrorMessage = $"Can't block yourself.", Success = false }); }
+                if(userId == userToBlockId) { return StatusCode(403, ErrorResponse.Forbidden("Can't perform block action on yourself.")); }
 
                 var res = await _communityService.BlockUser(userId, userToBlockId);
                 if (!res.Success)
@@ -586,33 +530,28 @@ namespace ElGato_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured {ex.Message}", Success = false });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
         [HttpPost]
         [Authorize(Policy = "user")]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> UnblockUser(string userToUnblockId)
         {
             try
             {
                 if (string.IsNullOrEmpty(userToUnblockId))
                 {
-                    return StatusCode(400, new BasicErrorResponse()
-                    {
-                        ErrorCode = ErrorCodes.ModelStateNotValid,
-                        ErrorMessage = "provide id of user to follow.",
-                        Success = false
-                    });
+                    return StatusCode(400, ErrorResponse.StateNotValid<string>());
                 }
 
                 var userId = _jwtService.GetUserIdClaim();
-                if (userId == userToUnblockId) { return StatusCode(403, new BasicErrorResponse() { ErrorCode = ErrorCodes.Forbidden, ErrorMessage = $"Can't unlblock yourself.", Success = false }); }
+                if (userId == userToUnblockId) { return StatusCode(403, ErrorResponse.Forbidden("Can't perform unblock action on yourself.")); }
 
                 var res = await _communityService.UnBlockUser(userId, userToUnblockId);
                 if (!res.Success)
@@ -629,7 +568,7 @@ namespace ElGato_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured {ex.Message}", Success = false });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
     }

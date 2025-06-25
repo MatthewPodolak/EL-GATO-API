@@ -40,19 +40,14 @@ namespace ElGato_API.Controllers
         [HttpPost]
         [AllowAnonymous]
         [ProducesResponseType(typeof(RegisterVMO), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status409Conflict)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status409Conflict)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> RegisterWithQuestionary([FromBody]RegisterWithQuestVM registerVM) 
         {
             if (!ModelState.IsValid)
             {
-                return BadRequest(new BasicErrorResponse()
-                {
-                    ErrorCode = ErrorCodes.ModelStateNotValid,
-                    ErrorMessage = "Model state not valid",
-                    Success = false
-                });
+                return BadRequest(ErrorResponse.StateNotValid<RegisterWithQuestVM>());
             }
 
             RegisterVMO registerVMO = new RegisterVMO();
@@ -62,35 +57,27 @@ namespace ElGato_API.Controllers
                 var mailStatus = await _accountService.IsEmailAlreadyUsed(registerVM.Email);
                 if (mailStatus)
                 {
-                    return StatusCode(409, new BasicErrorResponse()
-                    {
-                        Success = false,
-                        ErrorCode = ErrorCodes.AlreadyExists,
-                        ErrorMessage = "Account with given E-mail address already exists"
-                    });
+                    return StatusCode(409, ErrorResponse.AlreadyExists("Account with given E-mail address already exists"));
                 }
                     
                 var calorieIntake = _dietService.CalculateCalories(registerVM.Questionary);
                 registerVMO.calorieIntake = calorieIntake;
 
                 var res = await _accountService.RegisterUser(registerVM, calorieIntake);
-                if (!res.Succeeded) { registerVMO.Errors = res.Errors; registerVMO.Success = false; return StatusCode(400, new BasicErrorResponse()
+                if (!res.Succeeded) 
                 {
-                    ErrorCode = ErrorCodes.Failed,
-                    ErrorMessage = res.Errors.ToString(),
-                    Success = false,
-                }); }
+                    registerVMO.Errors = res.Errors; 
+                    registerVMO.Success = false; 
+
+                    return StatusCode(400, ErrorResponse.Failed(res.Errors.ToString()) ); 
+                }
 
                 var loginRes = await _accountService.LoginUser(new LoginVM() { Email = registerVM.Email, Password = registerVM.Password });
-                if (!loginRes.IdentityResult.Succeeded) {
+                if (!loginRes.IdentityResult.Succeeded) 
+                {
                     registerVMO.Success = false;
 
-                    return StatusCode(400, new BasicErrorResponse()
-                    {
-                        ErrorMessage = res.Errors.ToString(),
-                        ErrorCode = ErrorCodes.Failed,
-                        Success = false
-                    });
+                    return StatusCode(400, ErrorResponse.Failed(res.Errors.ToString()));
                 }
 
                 registerVMO.Success = true;
@@ -104,7 +91,7 @@ namespace ElGato_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured {ex.Message}", Success = false });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
@@ -115,17 +102,14 @@ namespace ElGato_API.Controllers
         [HttpPost]
         [AllowAnonymous]
         [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> Login([FromBody] LoginVM loginVM)
         {
             if (!ModelState.IsValid)
-                return StatusCode(400, new BasicErrorResponse()
-                {
-                    ErrorCode = ErrorCodes.ModelStateNotValid,
-                    ErrorMessage = "Invalid model state send.",
-                    Success = false
-                });
+            {
+                return StatusCode(400, ErrorResponse.StateNotValid<LoginVM>());
+            }
 
             try
             {
@@ -134,22 +118,24 @@ namespace ElGato_API.Controllers
                 if (loginResponse.IdentityResult.Succeeded)
                     return Ok(new { token = loginResponse.JwtToken });
 
-                return StatusCode(400, new BasicErrorResponse()
-                {
-                    ErrorCode = ErrorCodes.Failed,
-                    ErrorMessage = loginResponse.IdentityResult.Errors.ToString(),
-                    Success = false,
-                });
+                return StatusCode(400, ErrorResponse.Failed(loginResponse.IdentityResult.Errors.ToString()));
 
             }
-            catch (Exception ex) {
-                return StatusCode(500, new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An internal server error occured {ex.Message}", Success = false });
+            catch (Exception ex) 
+            {
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
-        [HttpPost]
+        [HttpPatch]
         public async Task<IActionResult> ChangePassword() 
         { 
+            throw new NotImplementedException();
+        }
+
+        [HttpPatch]
+        public async Task<IActionResult> ChangeEmail()
+        {
             throw new NotImplementedException();
         }
 

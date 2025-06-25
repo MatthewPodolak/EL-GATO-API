@@ -27,8 +27,8 @@ namespace ElGato_API.Controllers
         [HttpGet]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(StartersVMO), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetStarters()
         {
             try
@@ -88,27 +88,22 @@ namespace ElGato_API.Controllers
             }
             catch (Exception ex) 
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorMessage= $"Internal server error: {ex.Message}", ErrorCode = ErrorCodes.Internal, Success = false });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
         [HttpPost]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(List<SimpleMealVMO>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetExtendedStarters(ExtendedStartersVM model)
         {
             try
             {
                 if (!ModelState.IsValid)
                 {
-                    return StatusCode(400, new BasicErrorResponse()
-                    {
-                        Success = false,
-                        ErrorMessage = "Modal state not valid",
-                        ErrorCode = ErrorCodes.ModelStateNotValid,
-                    });
+                    return StatusCode(400, ErrorResponse.StateNotValid<ExtendedStartersVM>());
                 }
 
                 List<string> UserLikes = new List<string>();
@@ -189,19 +184,14 @@ namespace ElGato_API.Controllers
                         break;
 
                     default:
-                        return BadRequest(new BasicErrorResponse()
-                        {
-                            ErrorCode = ErrorCodes.Failed,
-                            ErrorMessage = "Invalid type specified.",
-                            Success = false
-                        });
-                };
+                        return BadRequest(ErrorResponse.Failed("Invalid type specified."));
+                }
 
                 return Ok(mealList);
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorMessage = $"Internal server error: {ex.Message}", ErrorCode = ErrorCodes.Internal, Success = false });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
 
         }
@@ -209,9 +199,9 @@ namespace ElGato_API.Controllers
         [HttpGet]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(List<SimpleMealVMO>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetLikedMeals()
         {
             try
@@ -246,15 +236,15 @@ namespace ElGato_API.Controllers
             }
             catch (Exception ex) 
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorMessage = $"Internal server error. {ex.Message}", ErrorCode = ErrorCodes.Internal });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
         [HttpGet]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(List<SimpleMealVMO>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetOwnRecipes()
         {
             try
@@ -285,17 +275,17 @@ namespace ElGato_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorMessage = $"Internal server error. {ex.Message}", ErrorCode = ErrorCodes.Internal });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
         [HttpGet]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(List<SimpleMealVMO>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetUserRecipes(string? userId = null, int count = 10, int skip = 0)
         {
             try
@@ -332,16 +322,16 @@ namespace ElGato_API.Controllers
             }
             catch(Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorMessage = $"Internal server error. {ex.Message}", ErrorCode = ErrorCodes.Internal });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
         [HttpPost]
         [Authorize(Policy = "user")]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> LikeMeal(string mealId)
         {
             try
@@ -363,16 +353,16 @@ namespace ElGato_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorMessage = $"Internal server error. {ex.Message}", ErrorCode = ErrorCodes.Internal });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
         [HttpPost]
         [Authorize(Policy = "user")]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> SaveMeal(string mealId)
         {
             try
@@ -394,28 +384,23 @@ namespace ElGato_API.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorMessage = $"Internal server error. {ex.Message}", ErrorCode = ErrorCodes.Internal });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
         [HttpPost]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(List<SimpleMealVMO>), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> Search(SearchMealVM model)
         {
             try
             {
                 if (!ModelState.IsValid)
                 {
-                    return StatusCode(400, new BasicErrorResponse()
-                    {
-                        Success = false,
-                        ErrorMessage = "Modal state not valid",
-                        ErrorCode = ErrorCodes.ModelStateNotValid,
-                    });
+                    return StatusCode(400, ErrorResponse.StateNotValid<SearchMealVM>());
                 }
 
                 string userId = _jwtService.GetUserIdClaim();
@@ -434,27 +419,22 @@ namespace ElGato_API.Controllers
             }
             catch (Exception ex) 
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorMessage = $"Internal server error. {ex.Message}", ErrorCode = ErrorCodes.Internal });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
         [HttpPost]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(AchievmentResponse), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> PublishMeal([FromForm]PublishMealVM model)
         {
             try
             {
                 if (!ModelState.IsValid)
                 {
-                    return StatusCode(400, new BasicErrorResponse()
-                    {
-                        Success = false,
-                        ErrorMessage = "Modal state not valid",
-                        ErrorCode = ErrorCodes.ModelStateNotValid,
-                    });
+                    return StatusCode(400, ErrorResponse.StateNotValid<PublishMealVM>());
                 }
 
                 string userId = _jwtService.GetUserIdClaim();
@@ -472,21 +452,21 @@ namespace ElGato_API.Controllers
 
                 if (res.ach != null) { return Ok(res.ach); }
 
-                return Ok(new AchievmentResponse() { Status = new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" } });
+                return Ok(new AchievmentResponse() { Status = ErrorResponse.Ok() });
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorMessage = $"Internal server error. {ex.Message}", ErrorCode = ErrorCodes.Internal });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 
         [HttpDelete]
         [Authorize(Policy = "user")]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(BasicErrorResponse), StatusCodes.Status500InternalServerError)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> DeleteMeal(string mealId)
         {
             try
@@ -501,10 +481,7 @@ namespace ElGato_API.Controllers
                     return res.ErrorCode switch
                     {
                         ErrorCodes.NotFound => NotFound(res),
-                        ErrorCodes.Forbidden => new ObjectResult(res)
-                        {
-                            StatusCode = StatusCodes.Status403Forbidden
-                        },
+                        ErrorCodes.Forbidden => StatusCode(403, res),
                         ErrorCodes.Internal => StatusCode(500, res),
                         _ => BadRequest(res)
                     };
@@ -514,7 +491,7 @@ namespace ElGato_API.Controllers
             }
             catch(Exception ex)
             {
-                return StatusCode(500, new BasicErrorResponse() { ErrorMessage = $"Internal server error. {ex.Message}", ErrorCode = ErrorCodes.Internal });
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
         }
 

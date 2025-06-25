@@ -10,22 +10,22 @@ namespace ElGato_API.Interfaces
 {
     public interface IMealService
     {
-        Task<(List<SimpleMealVMO> res, BasicErrorResponse error)> GetByMainCategory(string userId, List<string> LikedMeals, List<string> SavedMeals, string? category, int? qty = 5, int? pageNumber = 1);
-        Task<(List<SimpleMealVMO> res, BasicErrorResponse error)> GetByLowMakro(string userId, List<string> LikedMeals, List<string> SavedMeals, string makroComponent, int? qty = 5, int? pageNumber = 1);
-        Task<(List<SimpleMealVMO> res, BasicErrorResponse error)> GetByHighMakro(string userId, List<string> LikedMeals, List<string> SavedMeals, string makroComponent, int? qty = 5, int? pageNumber = 1);
-        Task<(List<SimpleMealVMO> res, BasicErrorResponse error)> GetMostLiked(string userId, List<string> LikedMeals, List<string> SavedMeals, int? qty = 5, int? pageNumber = 1);
-        Task<(List<SimpleMealVMO> res, BasicErrorResponse error)> GetRandom(string userId, List<string> LikedMeals, List<string> SavedMeals, int? qty = 5, int? pageNumber = 1);
+        Task<(List<SimpleMealVMO> res, ErrorResponse error)> GetByMainCategory(string userId, List<string> LikedMeals, List<string> SavedMeals, string? category, int? qty = 5, int? pageNumber = 1);
+        Task<(List<SimpleMealVMO> res, ErrorResponse error)> GetByLowMakro(string userId, List<string> LikedMeals, List<string> SavedMeals, string makroComponent, int? qty = 5, int? pageNumber = 1);
+        Task<(List<SimpleMealVMO> res, ErrorResponse error)> GetByHighMakro(string userId, List<string> LikedMeals, List<string> SavedMeals, string makroComponent, int? qty = 5, int? pageNumber = 1);
+        Task<(List<SimpleMealVMO> res, ErrorResponse error)> GetMostLiked(string userId, List<string> LikedMeals, List<string> SavedMeals, int? qty = 5, int? pageNumber = 1);
+        Task<(List<SimpleMealVMO> res, ErrorResponse error)> GetRandom(string userId, List<string> LikedMeals, List<string> SavedMeals, int? qty = 5, int? pageNumber = 1);
 
-        Task<(MealLikesDocument res, BasicErrorResponse error)> GetUserMealLikeDoc(string userId);
-        Task<BasicErrorResponse> LikeMeal(string userId, string mealId);
-        Task<BasicErrorResponse> SaveMeal(string userId, string mealId);
+        Task<(MealLikesDocument res, ErrorResponse error)> GetUserMealLikeDoc(string userId);
+        Task<ErrorResponse> LikeMeal(string userId, string mealId);
+        Task<ErrorResponse> SaveMeal(string userId, string mealId);
 
-        Task<(BasicErrorResponse error, List<SimpleMealVMO> res)> GetUserLikedMeals(string userId);
-        Task<(BasicErrorResponse error, List<SimpleMealVMO> res)> GetUserSavedMeals(string userId);
-        Task<(BasicErrorResponse error, List<SimpleMealVMO> res)> Search(string userId, SearchMealVM model);
-        Task<(BasicErrorResponse error, AchievmentResponse? ach)> ProcessAndPublishMeal(string userId, PublishMealVM model);
-        Task<(BasicErrorResponse error, List<SimpleMealVMO>? res)> GetOwnMeals(string userId, List<string> LikedMeals, List<string> SavedMeals);
-        Task<BasicErrorResponse> DeleteMeal(string userId, ObjectId mealId);
-        Task<(List<SimpleMealVMO> data, BasicErrorResponse error)> GetUserRecipes(string userId, int count, int skip, List<string> LikedMeals, List<string> SavedMeals);
+        Task<(ErrorResponse error, List<SimpleMealVMO> res)> GetUserLikedMeals(string userId);
+        Task<(ErrorResponse error, List<SimpleMealVMO> res)> GetUserSavedMeals(string userId);
+        Task<(ErrorResponse error, List<SimpleMealVMO> res)> Search(string userId, SearchMealVM model);
+        Task<(ErrorResponse error, AchievmentResponse? ach)> ProcessAndPublishMeal(string userId, PublishMealVM model);
+        Task<(ErrorResponse error, List<SimpleMealVMO>? res)> GetOwnMeals(string userId, List<string> LikedMeals, List<string> SavedMeals);
+        Task<ErrorResponse> DeleteMeal(string userId, ObjectId mealId);
+        Task<(List<SimpleMealVMO> data, ErrorResponse error)> GetUserRecipes(string userId, int count, int skip, List<string> LikedMeals, List<string> SavedMeals);
     }
 }

@@ -27,7 +27,7 @@ namespace ElGato_API.Services
             _userService = userService;
         }
 
-        public async Task<(BasicErrorResponse error, string? achievmentName)> GetCurrentAchivmentIdFromFamily(string achievmentFamily, string userId, AppDbContext? context)
+        public async Task<(ErrorResponse error, string? achievmentName)> GetCurrentAchivmentIdFromFamily(string achievmentFamily, string userId, AppDbContext? context)
         {
             AppDbContext dbContext;
 
@@ -48,14 +48,14 @@ namespace ElGato_API.Services
                 if (user == null)
                 {
                     _logger.LogWarning($"User not found while trying inside GetCurrentAchivmentIdFromFamily, for user {userId}");
-                    return (new BasicErrorResponse { Success = false, ErrorMessage = "User not found" }, null);
+                    return (ErrorResponse.NotFound("User not found"), null);
                 }
 
                 var relevantAchievements = user.Achievments.Where(ach => ach.Family == achievmentFamily).ToList();
 
                 if (!relevantAchievements.Any())
                 {
-                    return (new BasicErrorResponse { Success = true }, $"{achievmentFamily}_0");
+                    return (new ErrorResponse { Success = true }, $"{achievmentFamily}_0");
                 }
 
                 var maxAchievement = relevantAchievements
@@ -79,19 +79,19 @@ namespace ElGato_API.Services
                 string currentAchievmentName = $"{achievmentFamily}_{currentMax + 1}";
 
                 var doesAchievmentExist = await dbContext.Achievment.FirstOrDefaultAsync(a => a.StringId == currentAchievmentName);
-                if(doesAchievmentExist == null) { return (new BasicErrorResponse() { Success = true }, null); }
+                if(doesAchievmentExist == null) { return (new ErrorResponse() { Success = true }, null); }
 
-                return (new BasicErrorResponse { Success = true }, currentAchievmentName);
+                return (ErrorResponse.Ok(), currentAchievmentName);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "GetCurrentAchivmentIdFromFamily internal error");
-                return (new BasicErrorResponse { Success = false, ErrorMessage = $"Something went wrong: {ex.Message}" }, null);
+                return (ErrorResponse.Internal(ex.Message), null);
             }
         }
 
 
-        public async Task<(BasicErrorResponse error, AchievmentResponse? ach)> IncrementAchievmentProgress(string achievmentStringId, string userId, int incValue, AppDbContext? context)
+        public async Task<(ErrorResponse error, AchievmentResponse? ach)> IncrementAchievmentProgress(string achievmentStringId, string userId, int incValue, AppDbContext? context)
         {
             AppDbContext dbContext;
 
@@ -107,10 +107,10 @@ namespace ElGato_API.Services
 
             try
             {
-                AchievmentResponse achRes = new AchievmentResponse() { Achievment = new AchievmentVMO(), Status = new BasicErrorResponse() };
+                AchievmentResponse achRes = new AchievmentResponse() { Achievment = new AchievmentVMO(), Status = new ErrorResponse() };
 
                 var achievment = await dbContext.Achievment.FirstOrDefaultAsync(a => a.StringId == achievmentStringId);
-                if (achievment == null) { _logger.LogWarning($"User {userId} attempted to access non-existent achievement {achievmentStringId}"); return (new BasicErrorResponse() { Success = false, ErrorMessage = "Given achievments does not exists." }, null); }
+                if (achievment == null) { _logger.LogWarning($"User {userId} attempted to access non-existent achievement {achievmentStringId}"); return (new ErrorResponse() { Success = false, ErrorMessage = "Given achievments does not exists." }, null); }
 
                 var userCount = await dbContext.AchievementCounters.FirstOrDefaultAsync(a => a.UserId == userId && a.AchievmentId == achievment.Id);
                 if (userCount == null)
@@ -145,17 +145,17 @@ namespace ElGato_API.Services
                         achRes.Status.Success = true;
                         achRes.Status.ErrorMessage = "Sucess";
                         achRes.Status.ErrorCode = ErrorCodes.None;
-                        return (new BasicErrorResponse() { Success = true, }, achRes);
+                        return (new ErrorResponse() { Success = true, }, achRes);
                     }
 
                     await dbContext.SaveChangesAsync();
-                    return (new BasicErrorResponse() { Success = true, }, new AchievmentResponse() { Status = new BasicErrorResponse() { ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess", Success = true } });
+                    return (ErrorResponse.Ok(), new AchievmentResponse() { Status = ErrorResponse.Ok() });
                 }
                 else
                 {
                     if(achievment.DailyLimit && userCount.LastCount.Date == DateTime.Today)
                     {
-                        return (new BasicErrorResponse() { Success = true, }, new AchievmentResponse() { Status = new BasicErrorResponse() { ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess", Success = true } });
+                        return (ErrorResponse.Ok(), new AchievmentResponse() { Status = ErrorResponse.Ok() });
                     }
 
                     userCount.Counter += incValue;
@@ -183,21 +183,21 @@ namespace ElGato_API.Services
                         achRes.Status.Success = true;
                         achRes.Status.ErrorMessage = "Sucess";
                         achRes.Status.ErrorCode = ErrorCodes.None;
-                        return (new BasicErrorResponse() { Success = true, }, achRes);
+                        return (ErrorResponse.Ok(), achRes);
                     }
 
-                    return (new BasicErrorResponse() { Success = true, }, new AchievmentResponse() { Status = new BasicErrorResponse() { ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess", Success = true } });
+                    return (ErrorResponse.Ok(), new AchievmentResponse() { Status = ErrorResponse.Ok() });
                 }
 
             }
             catch (Exception ex) 
             {
                 _logger.LogError(ex, $"Failed to increment achievment progress. -- IncrementAchievmentProgress");
-                return (new BasicErrorResponse() { Success = false, ErrorMessage = ex.Message }, null);
+                return (ErrorResponse.Internal(ex.Message), null);
             }
         }
 
-        public async Task<(BasicErrorResponse error, List<ChallengeVMO>? data)> GetActiveChallenges(string userId)
+        public async Task<(ErrorResponse error, List<ChallengeVMO>? data)> GetActiveChallenges(string userId)
         {
             try
             {
@@ -238,16 +238,16 @@ namespace ElGato_API.Services
                     vmo.Add(newRec);
                 }
 
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess", Success = true }, vmo);
+                return (ErrorResponse.Ok(), vmo);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get active challenges. Method: {nameof(GetActiveChallenges)}");
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"Error occured: {ex.Message}", Success = false }, null);
+                return (ErrorResponse.Internal(ex.Message), null);
             }
         }
 
-        public async Task<(BasicErrorResponse error, List<ActiveChallengeVMO>? data)> GetUserActiveChallenges(string userId)
+        public async Task<(ErrorResponse error, List<ActiveChallengeVMO>? data)> GetUserActiveChallenges(string userId)
         {
             try
             {
@@ -296,16 +296,16 @@ namespace ElGato_API.Services
                     }
                 }
 
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" }, vmo);
+                return (ErrorResponse.Ok(), vmo);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get currently active challenges for user. UserId: {userId} Method: {nameof(GetActiveChallenges)}");
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"Error occured: {ex.Message}", Success = false }, null);
+                return (ErrorResponse.Internal(ex.Message), null);
             }
         }
 
-        public async Task<BasicErrorResponse> CheckAndAddBadgeProgressForUser(string userId, BadgeIncDataVM model, AppDbContext? context = null)
+        public async Task<ErrorResponse> CheckAndAddBadgeProgressForUser(string userId, BadgeIncDataVM model, AppDbContext? context = null)
         {
             try
             {
@@ -315,7 +315,7 @@ namespace ElGato_API.Services
 
                 if (user == null || user.ActiveChallanges == null)
                 {
-                    return new BasicErrorResponse
+                    return new ErrorResponse
                     {
                         ErrorCode = ErrorCodes.None,
                         Success = true,
@@ -399,26 +399,16 @@ namespace ElGato_API.Services
 
                 var save = context != null ? await context.SaveChangesAsync() : await _context.SaveChangesAsync();
 
-                return new BasicErrorResponse
-                {
-                    Success = true,
-                    ErrorCode = ErrorCodes.None,
-                    ErrorMessage = "Success"
-                };
+                return ErrorResponse.Ok();
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to check and add badge progress UserId: {userId} Method: {nameof(CheckAndAddBadgeProgressForUser)}");
-                return new BasicErrorResponse
-                {
-                    ErrorCode = ErrorCodes.Internal,
-                    ErrorMessage = $"Error occurred: {ex.Message}",
-                    Success = false
-                };
+                return ErrorResponse.Internal(ex.Message);
             }
         }
 
-        public async Task<(BasicErrorResponse error, AchievmentResponse? ach)> AddFromHealthConnectToStatisticsAndIncrementAchievments(string userId, List<UserStatisticsVM> data)
+        public async Task<(ErrorResponse error, AchievmentResponse? ach)> AddFromHealthConnectToStatisticsAndIncrementAchievments(string userId, List<UserStatisticsVM> data)
         {
             try
             {
@@ -439,16 +429,16 @@ namespace ElGato_API.Services
                 }
 
                 await sqlTx.CommitAsync();
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess"}, sqlTask.ach ?? null);
+                return (ErrorResponse.Ok(), sqlTask.ach ?? null);
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to add from HK to statistics and achievments. UserId: {userId} Method: {nameof(AddFromHealthConnectToStatisticsAndIncrementAchievments)}");
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, Success = false, ErrorMessage = $"An error occured: {ex.Message}" }, null);
+                return (ErrorResponse.Internal(ex.Message), null);
             }
         }
 
-        private async Task<(BasicErrorResponse error, AchievmentResponse? ach)> AddDataFromHealthConnectToAchievmentProgess(string userId, List<UserStatisticsVM> data, AppDbContext context)
+        private async Task<(ErrorResponse error, AchievmentResponse? ach)> AddDataFromHealthConnectToAchievmentProgess(string userId, List<UserStatisticsVM> data, AppDbContext context)
         {
             try
             {
@@ -463,14 +453,14 @@ namespace ElGato_API.Services
                             if (!achFamily.error.Success || String.IsNullOrEmpty(achFamily.achievmentName))
                             {
                                 _logger.LogError($"Failed while trying to add progress ach. Method: {nameof(AddDataFromHealthConnectToAchievmentProgess)}");
-                                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Failed, Success = false, ErrorMessage = $"An error occured while trying to add progres." }, null);
+                                return (ErrorResponse.Failed($"An error occured while trying to add progres."), null);
                             }
 
                             var achResponseCalorie = await IncrementAchievmentProgress(achFamily.achievmentName, userId, (int)item.Value, context);
                             if (!achResponseCalorie.error.Success)
                             {
                                 _logger.LogError($"Failed while trying to add progress ach. Method: {nameof(AddDataFromHealthConnectToAchievmentProgess)}");
-                                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Failed, Success = false, ErrorMessage = $"An error occured while trying to add progres." }, null);
+                                return (ErrorResponse.Failed("$\"An error occured while trying to add progres.\""), null);
                             }
 
                             if(achievmentResponse != null)
@@ -484,14 +474,14 @@ namespace ElGato_API.Services
                             if (!achFamilySteps.error.Success || String.IsNullOrEmpty(achFamilySteps.achievmentName))
                             {
                                 _logger.LogError($"Failed while trying to add progress ach. Method: {nameof(AddDataFromHealthConnectToAchievmentProgess)}");
-                                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Failed, Success = false, ErrorMessage = $"An error occured while trying to add progres." }, null);
+                                return (ErrorResponse.Failed($"An error occured while trying to add progres."), null);
                             }
 
                             var achResponseSteps = await IncrementAchievmentProgress(achFamilySteps.achievmentName, userId, (int)item.Value, context);
                             if (!achResponseSteps.error.Success)
                             {
                                 _logger.LogError($"Failed while trying to add progress ach. Method: {nameof(AddDataFromHealthConnectToAchievmentProgess)}");
-                                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Failed, Success = false, ErrorMessage = $"An error occured while trying to add progres." }, null);
+                                return (ErrorResponse.Failed("An error occured while tryinh to add progress."), null);
                             }
 
                             if(achievmentResponse != null)
@@ -502,12 +492,12 @@ namespace ElGato_API.Services
                     }
                 }
 
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" }, achievmentResponse);
+                return (ErrorResponse.Ok(), achievmentResponse);
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to add data to ach progress. UserId: {userId} Method: {nameof(AddDataFromHealthConnectToAchievmentProgess)}");
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, Success = false, ErrorMessage = $"An error occured: {ex.Message}"}, null);
+                return (ErrorResponse.Internal(ex.Message), null);
             }
         }
        

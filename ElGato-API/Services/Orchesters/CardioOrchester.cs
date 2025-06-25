@@ -84,18 +84,18 @@ namespace ElGato_API.Services.Orchesters
                         await sqlTx.RollbackAsync();
                         await session.AbortTransactionAsync();
                         _logger.LogError($"Failed while trying to get achievment data. Method {nameof(AddExerciseToTrainingDay)}");
-                        return new AchievmentResponse() { Status = new BasicErrorResponse() { ErrorCode = ErrorCodes.Failed, Success = false, ErrorMessage = "Failed while trying to get achievment progress data." } };
+                        return new AchievmentResponse() { Status = ErrorResponse.Failed("Failed while trying to get achievment progress data.") };
                     }
 
-                    Task<(BasicErrorResponse error, AchievmentResponse? ach)> incrementCardioTask =
+                    Task<(ErrorResponse error, AchievmentResponse? ach)> incrementCardioTask =
                         Task.FromResult((
-                            error: new BasicErrorResponse { Success = true, ErrorCode = ErrorCodes.None },
+                            error: ErrorResponse.Ok(),
                             ach: (AchievmentResponse?)null
                         ));
 
-                    Task<(BasicErrorResponse error, AchievmentResponse? ach)> incrementCalorieTask =
+                    Task<(ErrorResponse error, AchievmentResponse? ach)> incrementCalorieTask =
                         Task.FromResult((
-                            error: new BasicErrorResponse { Success = true, ErrorCode = ErrorCodes.None },
+                            error: ErrorResponse.Ok(),
                             ach: (AchievmentResponse?)null
                         ));
 
@@ -129,18 +129,18 @@ namespace ElGato_API.Services.Orchesters
                     await sqlTx.CommitAsync();
                     await session.CommitTransactionAsync();
 
-                    return new AchievmentResponse() { Status = new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" } };
+                    return new AchievmentResponse() { Status = ErrorResponse.Ok() };
                 }
                
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to add exercises to cardio training day. UserId: {userId} Method: {nameof(AddExerciseToTrainingDay)}");
-                return new AchievmentResponse() { Status = new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, Success = false, ErrorMessage = $"An error occured: {ex.Message}" } };
+                return new AchievmentResponse() { Status = ErrorResponse.Internal(ex.Message) };
             }
         }
 
-        public async Task<BasicErrorResponse> DeleteExercisesFromCardioTrainingDay(string userId, DeleteExercisesFromCardioTrainingVM model)
+        public async Task<ErrorResponse> DeleteExercisesFromCardioTrainingDay(string userId, DeleteExercisesFromCardioTrainingVM model)
         {
             try
             {
@@ -188,12 +188,12 @@ namespace ElGato_API.Services.Orchesters
                     await session.CommitTransactionAsync();
                 }
 
-                return new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" };
+                return ErrorResponse.Ok();
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to delete exercises from cardio training day. UserId: {userId} Method: {nameof(DeleteExercisesFromCardioTrainingDay)}");
-                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, Success = false, ErrorMessage = $"An error occured: {ex.Message}" };
+                return ErrorResponse.Internal(ex.Message);
             }
         }
     }

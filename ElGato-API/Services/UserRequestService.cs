@@ -15,7 +15,7 @@ namespace ElGato_API.Services
             _context = context;
             _logger = logger;
         }
-        public async Task<BasicErrorResponse> RequestAddIngredient(string userId, AddProductRequestVM model)
+        public async Task<ErrorResponse> RequestAddIngredient(string userId, AddProductRequestVM model)
         {
             try
             {
@@ -34,16 +34,16 @@ namespace ElGato_API.Services
                 _context.AddProductRequest.Add(request);
                 await _context.SaveChangesAsync();
 
-                return new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Sucesfully requested ingridient addition." };
+                return ErrorResponse.Ok();
 
             }catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to request ingridient addition. UserId: {userId} Data: {model} Method: {nameof(RequestAddIngredient)}");
-                return new BasicErrorResponse() { ErrorMessage = $"Request not succesfull. {ex.Message}", Success = false, ErrorCode = ErrorCodes.Internal };
+                return ErrorResponse.Internal(ex.Message);
             }
         }
 
-        public async Task<BasicErrorResponse> RequestReportIngredient(string userId, IngredientReportRequestVM model)
+        public async Task<ErrorResponse> RequestReportIngredient(string userId, IngredientReportRequestVM model)
         {
             try
             {
@@ -58,16 +58,16 @@ namespace ElGato_API.Services
                 _context.ReportedIngredients.Add(request);
                 await _context.SaveChangesAsync();
 
-                return new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Sucesfully created report request" };
+                return ErrorResponse.Ok();
             }
             catch (Exception ex) {
                 _logger.LogError(ex, $"Failed while trying to report ingredient. UserId: {userId} Data: {model} Method: {nameof(RequestReportIngredient)}");
-                return new BasicErrorResponse() { ErrorMessage = $"Request not succesfull {ex.Message}", Success = false, ErrorCode = ErrorCodes.Internal };
+                return ErrorResponse.Internal(ex.Message);
             }
         
         }
 
-        public async Task<BasicErrorResponse> RequestReportMeal(string userId, ReportMealRequestVM model)
+        public async Task<ErrorResponse> RequestReportMeal(string userId, ReportMealRequestVM model)
         {
             try
             {
@@ -82,16 +82,16 @@ namespace ElGato_API.Services
                 _context.ReportedMeals.Add(request);
                 await _context.SaveChangesAsync();
 
-                return new BasicErrorResponse() { Success = true, ErrorMessage = "Meal report request sucesfull.", ErrorCode = ErrorCodes.None };
+                return ErrorResponse.Ok();
             }
             catch (Exception ex) 
             {
                 _logger.LogError(ex, $"Failed while trying to report meal. UserId: {userId} Data: {model} Method: {nameof(RequestReportMeal)}");
-                return new BasicErrorResponse() { ErrorMessage = $"Request not succedull, internal error {ex.Message}", Success = false, ErrorCode = ErrorCodes.Internal };
+                return ErrorResponse.Internal(ex.Message);
             }
         }
 
-        public async Task<BasicErrorResponse> RequestReportUser(string userId, ReportUserVM model)
+        public async Task<ErrorResponse> RequestReportUser(string userId, ReportUserVM model)
         {
             try
             {
@@ -106,12 +106,12 @@ namespace ElGato_API.Services
                 _context.ReportedUsers.Add(newReport);
                 await _context.SaveChangesAsync();
 
-                return new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess" };
+                return ErrorResponse.Ok();
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to report user. UserId: {userId} Model: {model} Method: {nameof(RequestReportUser)}");
-                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"Error occured: {ex.Message}", Success = false };
+                return ErrorResponse.Internal(ex.Message);
             }
         }
     }

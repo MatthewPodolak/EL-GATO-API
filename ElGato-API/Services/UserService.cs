@@ -13,7 +13,6 @@ using ElGato_API.VMO.User;
 using Microsoft.EntityFrameworkCore;
 using MongoDB.Driver;
 using MongoDB.Driver.Linq;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace ElGato_API.Services
 {
@@ -37,28 +36,28 @@ namespace ElGato_API.Services
             _helperService = helperService;
         }
 
-        public async Task<(BasicErrorResponse error, string? data)> GetSystem(string userId)
+        public async Task<(ErrorResponse error, string? data)> GetSystem(string userId)
         {
             try
             {
                 var res = await _dbContext.AppUser.FirstOrDefaultAsync(a=>a.Id == userId);
                 if(res == null)
                 {
-                    return (new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, ErrorMessage = $"user with specified id not found", Success = false }, null);
+                    return (ErrorResponse.NotFound($"user with specified id not found"), null);
                 }
 
-                return (new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None }, res.Metric ? "metric" : "imperial");
+                return (ErrorResponse.Ok(), res.Metric ? "metric" : "imperial");
             }
             catch (Exception ex) 
             {
                 _logger.LogError(ex, $"Failed while trying to get system. UserId: {userId} Method: {nameof(GetSystem)}");
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"something went wrong, {ex.Message} ", Success = false}, null);
+                return (ErrorResponse.Internal(ex.Message), null);
             }            
         }
 
-        public async Task<(BasicErrorResponse error, UserCalorieIntake model)> GetUserCalories(string userId)
+        public async Task<(ErrorResponse error, UserCalorieIntake model)> GetUserCalories(string userId)
         {
-            BasicErrorResponse error = new BasicErrorResponse() { Success = false };
+            ErrorResponse error = new ErrorResponse() { Success = false };
             UserCalorieIntake userCalorieIntake = new UserCalorieIntake();
 
             try
@@ -89,7 +88,7 @@ namespace ElGato_API.Services
             }
         }
 
-        public async Task<(BasicErrorResponse error, UserCalorieIntake? model)> GetCurrentCalories(string userId, DateTime date)
+        public async Task<(ErrorResponse error, UserCalorieIntake? model)> GetCurrentCalories(string userId, DateTime date)
         {
             try
             {
@@ -100,10 +99,10 @@ namespace ElGato_API.Services
                     var newDoc = await _helperService.CreateMissingDoc(userId, _dailyDietCollection);
                     if (newDoc == null)
                     {
-                        return (new BasicErrorResponse() { Success = false, ErrorCode = ErrorCodes.NotFound, ErrorMessage = $"User daily diet collection not found." }, null);
+                        return (ErrorResponse.NotFound($"User daily diet collection not found."), null);
                     }
 
-                    return (new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = $"Sucess" }, new UserCalorieIntake());
+                    return (ErrorResponse.Ok(), new UserCalorieIntake());
                 }
 
                 var targetDay = userDietCollection.DailyPlans.FirstOrDefault(a => a.Date == date);
@@ -123,16 +122,15 @@ namespace ElGato_API.Services
                     }
                 }
 
-                return (new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess" }, vmo);
-
+                return (ErrorResponse.Ok(), vmo);
             }
             catch(Exception ex)
             {
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"Error occured: {ex.Message}", Success = false }, null);
+                return (ErrorResponse.Internal(ex.Message), null);
             }
         }
 
-        public async Task<(BasicErrorResponse error, double weight)> GetCurrentUserWeight(string userId)
+        public async Task<(ErrorResponse error, double weight)> GetCurrentUserWeight(string userId)
         {
             try
             {
@@ -140,19 +138,19 @@ namespace ElGato_API.Services
                 if(res == null || res.UserInformation == null)
                 {
                     _logger.LogWarning($"User record with id: {userId} not found while trying to get user current weight. Method: {nameof(GetCurrentUserWeight)}");
-                    return (new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, ErrorMessage = "User with given id and its weight not found.", Success = false }, 0);
+                    return (ErrorResponse.NotFound("User with given id and its weight not found."), 0);
                 }
 
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucess"}, res.UserInformation.Weight ?? 0);
+                return (ErrorResponse.Ok(), res.UserInformation.Weight ?? 0);
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Error occured while trying to get current user weight UserId: {userId} Method: {nameof(GetCurrentUserWeight)}");
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"Error occured: {ex}", Success = false}, 0);
+                return (ErrorResponse.Internal(ex.Message), 0);
             }
         }
 
-        public async Task<(BasicErrorResponse error, double water)> GetCurrentWaterIntake(string userId, DateTime date)
+        public async Task<(ErrorResponse error, double water)> GetCurrentWaterIntake(string userId, DateTime date)
         {
             try
             {
@@ -163,10 +161,10 @@ namespace ElGato_API.Services
                     var newDoc = await _helperService.CreateMissingDoc(userId, _dailyDietCollection);
                     if(newDoc == null)
                     {
-                        return (new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, ErrorMessage = "User daily diet document not found.", Success = false }, 0);
+                        return (ErrorResponse.NotFound("User daily diet document not found."), 0);
                     }
 
-                    return (new BasicErrorResponse() { ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess", Success = true }, 0);
+                    return (ErrorResponse.Ok(), 0);
                 }
 
                 double waterIntake = 0;
@@ -177,16 +175,16 @@ namespace ElGato_API.Services
                     waterIntake = targetDay.Water;
                 }
 
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucesss" }, waterIntake);
+                return (ErrorResponse.Ok(), waterIntake);
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Error while trying to get current water intake for user. UserId: {userId} Date: {date} Method: {nameof(GetCurrentWaterIntake)}");
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"Error occured: {ex.Message}", Success = false }, 0);
+                return (ErrorResponse.Internal(ex.Message), 0);
             }
         }
 
-        public async Task<(BasicErrorResponse error, UserLayoutVMO? data)> GetUserLayout(string userId)
+        public async Task<(ErrorResponse error, UserLayoutVMO? data)> GetUserLayout(string userId)
         {
             try
             {
@@ -194,7 +192,7 @@ namespace ElGato_API.Services
                 if (user == null)
                 {
                     _logger.LogCritical($"User not found. UserId: {userId} Method: {nameof(GetUserLayout)}");
-                    return (new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, ErrorMessage = "User not found.", Success = false }, null);
+                    return (ErrorResponse.NotFound(), null);
                 }
 
                 if(user.LayoutSettings == null)
@@ -245,23 +243,23 @@ namespace ElGato_API.Services
                     await _dbContext.SaveChangesAsync();
                 }
 
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess", Success = true }, ConvertToUserLayoutVMO(user.LayoutSettings));
+                return (ErrorResponse.Ok(), ConvertToUserLayoutVMO(user.LayoutSettings));
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get user layout. UserId: {userId} Method: {nameof(GetUserLayout)}");
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = ex.Message, Success = false }, null);
+                return (ErrorResponse.Internal(ex.Message), null);
             }
         }
 
-        public async Task<(BasicErrorResponse error, ExercisePastDataVMO? data)> GetPastExerciseData(string userId, string exerciseName, string period = "all")
+        public async Task<(ErrorResponse error, ExercisePastDataVMO? data)> GetPastExerciseData(string userId, string exerciseName, string period = "all")
         {
             try
             {
                 if (period != "all" && period != "year" && period != "month" && period != "week")
                 {
                     _logger.LogWarning($"User tried to use diffrent period than expected. UserId {userId} PeriodUsed: {period} Method: {nameof(ExercisePastDataVMO)}");
-                    return (new BasicErrorResponse() { ErrorCode = ErrorCodes.ModelStateNotValid, ErrorMessage = $"Invalid period: {period}. Allowed values are 'all', 'year', 'month', 'week'.", Success = false}, null);
+                    return (ErrorResponse.StateNotValid<string>($"Invalid period: {period}. Allowed values are 'all', 'year', 'month', 'week'."), null);
                 }
 
                 var userPastExercisesDoc = await _exercisesHistoryCollection.Find(a=>a.UserId == userId).FirstOrDefaultAsync();
@@ -272,16 +270,16 @@ namespace ElGato_API.Services
                     var newDoc = await _helperService.CreateMissingDoc(userId, _exercisesHistoryCollection);
                     if(newDoc == null)
                     {
-                        return (new BasicErrorResponse() { Success = false, ErrorCode = ErrorCodes.NotFound, ErrorMessage = "User exercise history document not found." }, null);
+                        return (ErrorResponse.NotFound("User exercise history document not found."), null);
                     }
 
-                    return (new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = $"Correctly retrived {exerciseName} data but document is empty." }, new ExercisePastDataVMO() { ExerciseName = exerciseName});
+                    return (ErrorResponse.Ok($"Correctly retrived {exerciseName} data but document is empty."), new ExercisePastDataVMO() { ExerciseName = exerciseName});
                 }
 
                 var targetedExercise = userPastExercisesDoc.ExerciseHistoryLists.FirstOrDefault(a=>a.ExerciseName == exerciseName);
                 if(targetedExercise == null)
                 {
-                    return (new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = $"No past data for {exerciseName} found."}, new ExercisePastDataVMO() { ExerciseName = exerciseName});
+                    return (ErrorResponse.Ok($"No past data for {exerciseName} found."), new ExercisePastDataVMO() { ExerciseName = exerciseName});
                 }
 
                 ExercisePastDataVMO exercisePastDataVMO = new ExercisePastDataVMO() { ExerciseName = exerciseName};
@@ -315,12 +313,12 @@ namespace ElGato_API.Services
 
                 exercisePastDataVMO.PastData.RemoveAll(x => x.Series.Count == 0);
 
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Sucessfully retrived data." }, exercisePastDataVMO);
+                return (ErrorResponse.Ok(), exercisePastDataVMO);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get past data of an exercise. UserId: {userId} ExerciseName: {exerciseName} Method: {nameof(GetPastExerciseData)}");
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"Error occured: {ex.Message}", Success = false }, null);
+                return (ErrorResponse.Internal(ex.Message), null);
             }
         }
 
@@ -340,7 +338,7 @@ namespace ElGato_API.Services
             };
         }
 
-        public async Task<(BasicErrorResponse error, MuscleUsageDataVMO? data)> GetMuscleUsageData(string userId, string period = "all")
+        public async Task<(ErrorResponse error, MuscleUsageDataVMO? data)> GetMuscleUsageData(string userId, string period = "all")
         {
             try
             {
@@ -349,7 +347,7 @@ namespace ElGato_API.Services
                 {
                     _logger.LogWarning($"user {userId} exercise history collection does not exist. creating.");
                     await _helperService.CreateMissingDoc(userId, _exercisesHistoryCollection);
-                    return (new BasicErrorResponse() { ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess", Success = true }, new MuscleUsageDataVMO());
+                    return (ErrorResponse.Ok(), new MuscleUsageDataVMO());
                 }
 
                 var vmo = new MuscleUsageDataVMO();
@@ -477,16 +475,16 @@ namespace ElGato_API.Services
                         break;
                 }
 
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess", Success = true}, vmo);
+                return (ErrorResponse.Ok(), vmo);
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get muscle usage data UserId: {userId} Period: {period} Method: {nameof(GetMuscleUsageData)}");
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"Error occured: {ex.Message}", Success = false }, null);
+                return (ErrorResponse.Internal(ex.Message), null);
             }
         }
 
-        public async Task<(BasicErrorResponse error, MakroDataVMO? data)> GetPastMakroData(string userId, string period = "all")
+        public async Task<(ErrorResponse error, MakroDataVMO? data)> GetPastMakroData(string userId, string period = "all")
         {
             try
             {
@@ -495,7 +493,7 @@ namespace ElGato_API.Services
                 {
                     _logger.LogWarning($"user {userId} diet history collection does not exist. creating...");
                     await _helperService.CreateMissingDoc(userId, _dietHistoryCollection);
-                    return (new BasicErrorResponse() { ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess", Success = true }, new MakroDataVMO());
+                    return (ErrorResponse.Ok(), new MakroDataVMO());
                 }
 
                 var vmo = new MakroDataVMO();
@@ -612,16 +610,16 @@ namespace ElGato_API.Services
                     vmo.MakroData.Add(data);
                 }
 
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess", Success = true }, vmo);
+                return (ErrorResponse.Ok(), vmo);
             } 
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get past makro data. UserId: {userId} Period: {period} Method: {nameof(GetPastMakroData)}");
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = false }, null);
+                return (ErrorResponse.Internal(ex.Message), null);
             }
         }
 
-        public async Task<(BasicErrorResponse error, DailyMakroDistributionVMO? data)> GetDailyMakroDisturbtion(string userId, DateTime date)
+        public async Task<(ErrorResponse error, DailyMakroDistributionVMO? data)> GetDailyMakroDisturbtion(string userId, DateTime date)
         {
             try
             {
@@ -632,10 +630,10 @@ namespace ElGato_API.Services
                     var newDoc = await _helperService.CreateMissingDoc(userId, _dailyDietCollection);
                     if (newDoc != null)
                     {
-                        return (new BasicErrorResponse() { ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess", Success = true }, new DailyMakroDistributionVMO() { Date = date });
+                        return (ErrorResponse.Ok(), new DailyMakroDistributionVMO() { Date = date });
                     }
 
-                    return (new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, ErrorMessage = "User diet document not found.", Success = false }, null);
+                    return (ErrorResponse.NotFound("User diet document not found."), null);
                 }
 
                 var vmo = new DailyMakroDistributionVMO() { Date = date };
@@ -677,23 +675,23 @@ namespace ElGato_API.Services
                     }
                 }
 
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess", Success = true }, vmo);
+                return (ErrorResponse.Ok(), vmo);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get daily makro disturbtion for user. UserId: {userId} Datae: {date} Method: {nameof(GetDailyMakroDisturbtion)}");
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"An error occured: {ex.Message}", Success = true }, null);
+                return (ErrorResponse.Internal(ex.Message), null);
             }
         }
 
-        public async Task<BasicErrorResponse> UpdateLayout(string userId, UserLayoutVM model)
+        public async Task<ErrorResponse> UpdateLayout(string userId, UserLayoutVM model)
         {
             try
             {
                 var user = await _dbContext.AppUser.FirstOrDefaultAsync(a => a.Id == userId);
                 if (user == null)
                 {
-                    return new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, ErrorMessage = "User not found.", Success = false };
+                    return ErrorResponse.NotFound("User not found.");
                 }
 
                 LayoutSettings settings = new LayoutSettings()
@@ -707,16 +705,16 @@ namespace ElGato_API.Services
                 _dbContext.AppUser.Update(user);
                 await _dbContext.SaveChangesAsync();
 
-                return new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success  = true, ErrorMessage = "Sucess" };
+                return ErrorResponse.Ok();
             } 
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to update user layout. UserId: {userId} Data: {model} Method: {nameof(UpdateLayout)}");
-                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, ErrorMessage = $"Error occured: {ex}", Success = false };
+                return ErrorResponse.Internal(ex.Message);
             }
         }
 
-        public async Task<BasicErrorResponse> AddToUserStatistics(string userId, List<UserStatisticsVM> model, IClientSessionHandle session = null, bool caloriesNormal = false)
+        public async Task<ErrorResponse> AddToUserStatistics(string userId, List<UserStatisticsVM> model, IClientSessionHandle session = null, bool caloriesNormal = false)
         {
             try
             {
@@ -736,7 +734,7 @@ namespace ElGato_API.Services
                     var newDoc = await _helperService.CreateMissingDoc(userId, _userStatisticsDocument);
                     if (newDoc == null)
                     {
-                        return (new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, ErrorMessage = "Coudn't save user statistics. Document not found.", Success = false });
+                        return ErrorResponse.NotFound("Coudn't save user statistics. Document not found.");
                     }
 
                     userStatisticsDoc = newDoc;
@@ -934,16 +932,16 @@ namespace ElGato_API.Services
                     await _userStatisticsDocument.ReplaceOneAsync(session, d => d.UserId == userId, userStatisticsDoc);
                 }
 
-                return new BasicErrorResponse() { Success = true, ErrorCode = ErrorCodes.None, ErrorMessage = "Sucess" };
+                return ErrorResponse.Ok();
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to add statistics to user statistics doc. UserId: {userId} Model: {model} Method: {nameof(AddToUserStatistics)}");
-                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, Success = false, ErrorMessage = $"An error occured: {ex.Message}" };
+                return ErrorResponse.Internal(ex.Message);
             }
         }
 
-        public async Task<(BasicErrorResponse error, string? newPfpUrl)> UpdateProfileInformation(string userId, UserProfileInformationVM model)
+        public async Task<(ErrorResponse error, string? newPfpUrl)> UpdateProfileInformation(string userId, UserProfileInformationVM model)
         {
             try
             {
@@ -951,7 +949,7 @@ namespace ElGato_API.Services
                 if(user == null)
                 {
                     _logger.LogWarning($"User with id not found -> UserId: {userId} Method: {nameof(UpdateProfileInformation)}");
-                    return (new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, ErrorMessage = "User with given id not found.", Success = false }, null);
+                    return (ErrorResponse.NotFound("User with given id not found."), null);
                 }
 
                 if (!string.IsNullOrEmpty(model.NewDesc))
@@ -1011,17 +1009,16 @@ namespace ElGato_API.Services
                 }
 
                 await _dbContext.SaveChangesAsync();
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Profile information updated sucessfully." }, user.Pfp);
-
+                return (ErrorResponse.Ok(), user.Pfp);
             }
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to update profile information for user. UserId: {userId} Method: {nameof(UpdateProfileInformation)}");
-                return (new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, Success = false, ErrorMessage = $"An error occured: {ex.Message}" }, null);
+                return (ErrorResponse.Internal(ex.Message), null);
             }
         }
 
-        public async Task<BasicErrorResponse> ChangeProfileVisilibity(string userId)
+        public async Task<ErrorResponse> ChangeProfileVisilibity(string userId)
         {
             try
             {
@@ -1029,17 +1026,17 @@ namespace ElGato_API.Services
                 if (user == null)
                 {
                     _logger.LogWarning($"User with id not found -> UserId: {userId} Method: {nameof(UpdateProfileInformation)}");
-                    return new BasicErrorResponse() { ErrorCode = ErrorCodes.NotFound, ErrorMessage = "User with given id not found.", Success = false };
+                    return ErrorResponse.NotFound("User with given id not found.");
                 }
 
                 user.IsProfilePrivate = !user.IsProfilePrivate;
                 await _dbContext.SaveChangesAsync();
-                return new BasicErrorResponse() { ErrorCode = ErrorCodes.None, Success = true, ErrorMessage = "Profile visilibity updated sucessfully." };
+                return ErrorResponse.Ok();
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to chane profile visilibiyu for user. UserId: {userId} Method: {nameof(ChangeProfileVisilibity)}");
-                return new BasicErrorResponse() { ErrorCode = ErrorCodes.Internal, Success = false, ErrorMessage = $"An error occured: {ex.Message}" };
+                return ErrorResponse.Internal(ex.Message);
             }
         }
     }
