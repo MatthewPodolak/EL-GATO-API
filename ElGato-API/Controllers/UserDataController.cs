@@ -1,6 +1,7 @@
 ﻿using ElGato_API.Data;
 using ElGato_API.Data.JWT;
 using ElGato_API.Interfaces;
+using ElGato_API.Interfaces.Orchesters;
 using ElGato_API.Models.User;
 using ElGato_API.ModelsMongo.Statistics;
 using ElGato_API.VM.UserData;
@@ -21,11 +22,13 @@ namespace ElGato_API.Controllers
         private readonly IJwtService _jwtService;
         private readonly IUserService _userService;
         private readonly IAchievmentService _achievmentService;
-        public UserDataController(IJwtService jwtService, IUserService userService, IAchievmentService achievmentService)
+        private readonly IUserDataOrchester _userDataOrchester;
+        public UserDataController(IJwtService jwtService, IUserService userService, IAchievmentService achievmentService, IUserDataOrchester userDataOrchester)
         {
             _jwtService = jwtService;
             _userService = userService;
             _achievmentService = achievmentService;
+            _userDataOrchester = userDataOrchester;
         }
 
         [HttpGet]
@@ -346,6 +349,43 @@ namespace ElGato_API.Controllers
             }
         }
 
+        [HttpPost]
+        [Authorize(Policy = "user")]
+        [ProducesResponseType(typeof(AchievmentResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> AddSteps([FromBody] AddStepsVM model)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return StatusCode(400, ErrorResponse.StateNotValid<AddStepsVM>());
+                }
+
+                var userId = _jwtService.GetUserIdClaim();
+
+                var res = await _userDataOrchester.AddStepsForUser(userId, model);
+                if (!res.Status.Success)
+                {
+                    return res.Status.ErrorCode switch
+                    {
+                        ErrorCodes.NotFound => NotFound(res.Status),
+                        ErrorCodes.Internal => StatusCode(500, res.Status),
+                        ErrorCodes.ModelStateNotValid => BadRequest(res.Status),
+                        _ => BadRequest(res.Status)
+                    };
+                }
+
+                return Ok(res);
+            }
+            catch(Exception ex)
+            {
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
+            }
+        }
+
         [HttpPatch]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(AchievmentResponse), StatusCodes.Status200OK)]
@@ -492,7 +532,39 @@ namespace ElGato_API.Controllers
             {
                 return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
+        }
 
+        [HttpPatch]
+        [Authorize(Policy = "user")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> UpdateStepsTreshold(int treshold)
+        {
+            try 
+            { 
+                if(treshold == 0) { return StatusCode(400, ErrorResponse.StateNotValid<int>("Value must be grater than zero.")); }
+
+                var userId = _jwtService.GetUserIdClaim();
+
+                var res = await _userService.UpdateUserStepsTreshold(userId, treshold);
+                if (!res.Success)
+                {
+                    return res.ErrorCode switch
+                    {
+                        ErrorCodes.NotFound => NotFound(res),
+                        ErrorCodes.Internal => StatusCode(500, res),
+                        _ => BadRequest(res)
+                    };
+                }
+
+                return Ok();
+            }
+            catch(Exception ex)
+            {
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
+            }
         }
     }
 }

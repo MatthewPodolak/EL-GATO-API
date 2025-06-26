@@ -23,5 +23,6 @@ namespace ElGato_API.Interfaces
         Task<ErrorResponse> AddToUserStatistics(string userId, List<UserStatisticsVM> model, IClientSessionHandle session = null, bool caloriesNormal = false);
         Task<(ErrorResponse error, string? newPfpUrl)> UpdateProfileInformation(string userId, UserProfileInformationVM model);
         Task<ErrorResponse> ChangeProfileVisilibity(string userId);
+        Task<ErrorResponse> UpdateUserStepsTreshold(string userId, int newTreshold);
     }
 }

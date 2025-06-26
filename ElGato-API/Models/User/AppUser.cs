@@ -9,6 +9,7 @@ namespace ElGato_API.Models.User
         public string? Desc { get; set; }
         public bool Metric { get; set; } = true;
         public string Pfp { get; set; } = "/pfp-images/e2f56642-a493-4c6d-924b-d3072714646a.png";
+        public int StepsThreshold { get; set; } = 3000;
         public UserInformation? UserInformation { get; set; }
         public CalorieInformation? CalorieInformation { get; set; }
         public List<Achievment>? Achievments { get; set; } = new List<Achievment>();

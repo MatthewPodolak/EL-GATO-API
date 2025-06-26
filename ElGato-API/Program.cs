@@ -110,6 +110,7 @@ builder.Services.AddScoped<IHelperService, HelperService>();
 
 builder.Services.AddScoped<ITrainingOrchester, TrainingOrchester>();
 builder.Services.AddScoped<ICardioOrchester, CardioOrchester>();
+builder.Services.AddScoped<IUserDataOrchester, UserDataOrchester>();
 
 //IDENTITY
 builder.Services.AddIdentity<AppUser, IdentityRole>()

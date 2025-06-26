@@ -1039,5 +1039,26 @@ namespace ElGato_API.Services
                 return ErrorResponse.Internal(ex.Message);
             }
         }
+
+        public async Task<ErrorResponse> UpdateUserStepsTreshold(string userId, int newTreshold)
+        {
+            try
+            {
+                var user = await _dbContext.AppUser.FirstOrDefaultAsync(a => a.Id == userId);
+                if(user == null)
+                {
+                    return ErrorResponse.NotFound();
+                }
+
+                user.StepsThreshold = newTreshold;
+                await _dbContext.SaveChangesAsync();
+
+                return ErrorResponse.Ok();
+            }
+            catch(Exception ex)
+            {
+                return ErrorResponse.Internal(ex.Message);
+            }
+        }
     }
 }
