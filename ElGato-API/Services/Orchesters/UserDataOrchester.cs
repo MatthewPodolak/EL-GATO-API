@@ -28,75 +28,98 @@ namespace ElGato_API.Services.Orchesters
 
         public async Task<AchievmentResponse> AddStepsForUser(string userId, AddStepsVM model)
         {
-            try
+            var client = _userStatisticsDocument.Database.Client;
+            var options = new TransactionOptions(readConcern: ReadConcern.Snapshot, writeConcern: WriteConcern.WMajority);
+            const int MaxRetries = 3;
+
+            using var session = await client.StartSessionAsync();
+            for (int attempt = 1; attempt <= MaxRetries; attempt++)
             {
-                var client = _userStatisticsDocument.Database.Client;
-
-                using (var session = await client.StartSessionAsync())
+                try
                 {
-                    session.StartTransaction();
-
-                    var statisticsModel = new List<UserStatisticsVM>()
-                    {
-                        new UserStatisticsVM()
+                    return await session.WithTransactionAsync<AchievmentResponse>(
+                        async (s, ct) =>
                         {
-                            Type = StatisticType.StepsTaken,
-                            Date = model.Date,
-                            Value = model.Steps
-                        }
+                            var stats = new List<UserStatisticsVM>
+                            {
+                                new UserStatisticsVM
+                                {
+                                    Type  = StatisticType.StepsTaken,
+                                    Date  = model.Date,
+                                    Value = model.Steps
+                                }
+                            };
+
+                            var addRes = await _userService.AddToUserStatistics(userId, stats, s, true);
+                            if (!addRes.Success)
+                                return new AchievmentResponse { Status = ErrorResponse.Failed() };
+
+                            await using var sqlTx = await _context.Database.BeginTransactionAsync(ct);
+
+                            var family = await _achievmentService.GetCurrentAchivmentIdFromFamily("STEPS", userId, _context);
+                            if (!family.error.Success)
+                            {
+                                await sqlTx.RollbackAsync(ct);
+                                return new AchievmentResponse { Status = ErrorResponse.Failed() };
+                            }
+
+                            if (string.IsNullOrEmpty(family.achievmentName))
+                            {
+                                await sqlTx.CommitAsync(ct);
+                                return new AchievmentResponse { Status = ErrorResponse.Ok() };
+                            }
+
+                            var prev = await _achievmentService.GetPreviousCounterValue(family.achievmentName, userId, _context);
+                            if (!prev.error.Success)
+                            {
+                                await sqlTx.RollbackAsync(ct);
+                                return new AchievmentResponse { Status = ErrorResponse.Failed() };
+                            }
+
+                            var inc = await _achievmentService.IncrementAchievmentProgress(
+                                family.achievmentName,
+                                userId,
+                                model.Steps - prev.value,
+                                _context
+                            );
+                            if (!inc.error.Success)
+                            {
+                                await sqlTx.RollbackAsync(ct);
+                                return new AchievmentResponse { Status = ErrorResponse.Failed() };
+                            }
+
+                            await sqlTx.CommitAsync(ct);
+                            return inc.ach ?? new AchievmentResponse { Status = ErrorResponse.Ok() };
+                        },
+                        options
+                    );
+                }
+                catch (MongoCommandException mex) when (mex.HasErrorLabel("TransientTransactionError") ||  mex.Message.Contains("Write conflict"))
+                {
+                    if (attempt == MaxRetries)
+                        return new AchievmentResponse
+                        {
+                            Status = ErrorResponse.Internal($"Mongo transaction failed after {MaxRetries} attempts: {mex.Message}")
+                        };
+
+                    await Task.Delay(TimeSpan.FromMilliseconds(50 * attempt));
+                }
+                catch (Exception ex)
+                {
+                    return new AchievmentResponse
+                    {
+                        Status = ErrorResponse.Internal(ex.Message)
                     };
-
-                    var saveUserStatisticsTask = await _userService.AddToUserStatistics(userId, statisticsModel, session, true);
-                    if (!saveUserStatisticsTask.Success)
-                    {
-                        await session.AbortTransactionAsync();
-                        _logger.LogWarning($"Failed while trying to add steps to the statistics. UserId: {userId} Method: {nameof(AddStepsForUser)}");
-                        return new AchievmentResponse() { Status = saveUserStatisticsTask };
-                    }
-
-                    await using var sqlTx = await _context.Database.BeginTransactionAsync();
-
-                    var familyResult = await _achievmentService.GetCurrentAchivmentIdFromFamily("STEPS", userId, _context);
-                    if (!familyResult.error.Success)
-                    {
-                        await sqlTx.RollbackAsync();
-                        await session.AbortTransactionAsync();
-                        _logger.LogError($"Failed while trying to retrive current achievment table. UserId: {userId} Method: {nameof(AddStepsForUser)}");
-                        return new AchievmentResponse() { Status = familyResult.error };
-                    }
-
-                    if (string.IsNullOrEmpty(familyResult.achievmentName))
-                    {
-                        await session.CommitTransactionAsync();
-                        return new AchievmentResponse { Status = ErrorResponse.Ok() };
-                    }
-
-                    var incrementTask = await _achievmentService.IncrementAchievmentProgress(familyResult.achievmentName, userId, model.Steps, _context);
-                    if (!incrementTask.error.Success)
-                    {
-                        await sqlTx.RollbackAsync();
-                        await session.AbortTransactionAsync();
-                        return new AchievmentResponse() { Status = incrementTask.error };
-                    }
-                    
-                    if(incrementTask.ach != null)
-                    {
-                        await sqlTx.CommitAsync();
-                        await session.CommitTransactionAsync();
-
-                        return incrementTask.ach;
-                    }
-
-
-                    await sqlTx.CommitAsync();
-                    await session.CommitTransactionAsync();
-                    return new AchievmentResponse() { Status = ErrorResponse.Ok() };
                 }
             }
-            catch (Exception ex)
+
+            return new AchievmentResponse
             {
-                return new AchievmentResponse() { Status = ErrorResponse.Internal(ex.Message) };
-            }
+                Status = ErrorResponse.Internal("Unexpected retry logic path.")
+            };
         }
+
+
+
     }
 }

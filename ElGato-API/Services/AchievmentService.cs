@@ -1,5 +1,6 @@
 ﻿using ElGato_API.Data;
 using ElGato_API.Interfaces;
+using ElGato_API.Migrations;
 using ElGato_API.Models.Feed;
 using ElGato_API.Models.User;
 using ElGato_API.ModelsMongo.Cardio;
@@ -90,6 +91,81 @@ namespace ElGato_API.Services
             }
         }
 
+        public async Task<(ErrorResponse error, int value)> GetPreviousCounterValue(string achievmentStringId, string userId, AppDbContext? context)
+        {
+            AppDbContext dbContext;
+
+            if (context == null)
+            {
+                using var scope = _scopeFactory.CreateScope();
+                dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            }
+            else
+            {
+                dbContext = context;
+            }
+
+            try
+            {
+                Achievment achievmentModel;
+                int number = 0;
+
+                achievmentModel = await dbContext.Achievment.FirstOrDefaultAsync(a => a.StringId == achievmentStringId);
+                if(achievmentModel == null)
+                {
+                    string fallbackId;
+
+                    if (!string.IsNullOrEmpty(achievmentStringId))
+                    {
+                        var parts = achievmentStringId.Split('_', 2);
+                        var prefix = parts[0];
+
+                        if (parts.Length == 2 && Int32.TryParse(parts[1], out number))
+                        {
+                            if(number <= 0)
+                            {
+                                return (ErrorResponse.Ok(), 0);
+                            }
+
+                            fallbackId = $"{prefix}_{number - 1}";
+                        }
+                        else
+                        {
+                            _logger.LogError("Failex while trying to retrive ach id prefix.");
+                            return (ErrorResponse.Failed("Failex while trying to retrive ach id prefix."), 0);
+                        }
+                    }
+                    else
+                    {
+                        _logger.LogError("Failex while trying to retrive ach id prefix.");
+                        return (ErrorResponse.Failed("Failex while trying to retrive ach id prefix."), 0);
+                    }
+
+                    achievmentModel = await dbContext.Achievment.FirstOrDefaultAsync(a => a.StringId == fallbackId);
+                    if(achievmentModel == null)
+                    {
+                        _logger.LogError($"Failed while tryinh to get current achievment counter. Method: {nameof(GetPreviousCounterValue)}");
+                        return (ErrorResponse.Failed("Failed while tryinh to get current achievment counter."), 0);
+                    }
+                }
+
+                var userCounter = await dbContext.AchievementCounters.FirstOrDefaultAsync(a => a.UserId == userId && a.AchievmentId == achievmentModel.Id);
+                if(userCounter == null)
+                {
+                    if(number == 0) {  return (ErrorResponse.Ok(), 0); }
+
+                    _logger.LogError($"Failed while tryinh to get current achievment counter. Method: {nameof(GetPreviousCounterValue)}");
+                    return (ErrorResponse.Failed("Failed while tryinh to get current achievment counter."), 0);
+                }
+
+                return (ErrorResponse.Ok(), userCounter.Counter);
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"An error occured while trying to get previous achievment counter value. Method: {nameof(GetPreviousCounterValue)}");
+                return (ErrorResponse.Internal(ex.Message), 0);
+            }
+        }
 
         public async Task<(ErrorResponse error, AchievmentResponse? ach)> IncrementAchievmentProgress(string achievmentStringId, string userId, int incValue, AppDbContext? context)
         {

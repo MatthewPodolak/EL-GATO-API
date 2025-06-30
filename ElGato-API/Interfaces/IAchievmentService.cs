@@ -10,6 +10,7 @@ namespace ElGato_API.Interfaces
     public interface IAchievmentService
     {
         Task<(ErrorResponse error, string? achievmentName)> GetCurrentAchivmentIdFromFamily(string achievmentFamily, string userId, AppDbContext? context = null);
+        Task<(ErrorResponse error, int value)> GetPreviousCounterValue(string achievmentStringId, string userId, AppDbContext? context);
         Task<(ErrorResponse error, AchievmentResponse? ach)> IncrementAchievmentProgress(string achievmentName, string userId, int incValue, AppDbContext? context = null);
 
         //badges
