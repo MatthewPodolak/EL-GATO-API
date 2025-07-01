@@ -689,16 +689,18 @@ namespace ElGato_API.Services
             try
             {
                 var user = await _dbContext.AppUser.FirstOrDefaultAsync(a => a.Id == userId);
-                if (user == null)
-                {
-                    return ErrorResponse.NotFound("User not found.");
-                }
 
-                LayoutSettings settings = new LayoutSettings()
+                if (user == null)
+                    return ErrorResponse.NotFound("User not found.");
+
+                var settings = user.LayoutSettings ?? new LayoutSettings();
+
+                settings.Animations = model.Animations;
+
+                if (model.ChartStack != null && model.ChartStack.Any())
                 {
-                    Animations = model.Animations,
-                    ChartStack = model.ChartStack,
-                };
+                    settings.ChartStack = model.ChartStack;
+                }
 
                 user.LayoutSettings = settings;
 
