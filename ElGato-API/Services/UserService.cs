@@ -150,6 +150,32 @@ namespace ElGato_API.Services
             }
         }
 
+        public async Task<(ErrorResponse error, int value)> GetCurrentlyBurntCaloriesValueForUser(string userId, DateTime date)
+        {
+            try
+            {
+                var userStatisticDoc = await _userStatisticsDocument.Find(a=>a.UserId == userId).FirstOrDefaultAsync();
+                if(userStatisticDoc == null)
+                {
+                    await _helperService.CreateMissingDoc(userId, _userStatisticsDocument);
+                    _logger.LogError($"User statistics document not found. UserId: {userId} Method: {nameof(GetCurrentlyBurntCaloriesValueForUser)}");
+                    return (ErrorResponse.Ok(), 0);
+                }
+
+                var caloriesStatistics = userStatisticDoc.UserStatisticGroups.FirstOrDefault(a => a.Type == StatisticType.CaloriesBurnt);
+                if(caloriesStatistics == null) { return (ErrorResponse.Ok(), 0); }
+
+                var todayCalories = caloriesStatistics.Records.FirstOrDefault(a=>a.Date == date);
+                if(todayCalories == null) { return (ErrorResponse.Ok(), 0); }
+
+                return (ErrorResponse.Ok(), (int)todayCalories.Value);
+            }
+            catch(Exception ex)
+            {
+                return (ErrorResponse.Internal(ex.Message), 0);
+            }
+        }
+
         public async Task<(ErrorResponse error, double water)> GetCurrentWaterIntake(string userId, DateTime date)
         {
             try

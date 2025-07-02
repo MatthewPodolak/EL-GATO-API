@@ -64,6 +64,38 @@ namespace ElGato_API.Controllers
 
         [HttpGet]
         [Authorize(Policy = "user")]
+        [ProducesResponseType(typeof(int), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> GetCurrentBurntCalories(DateTime date)
+        {
+            try
+            {
+                string userId = _jwtService.GetUserIdClaim();
+
+                var res = await _userService.GetCurrentlyBurntCaloriesValueForUser(userId, date);
+                if (!res.error.Success)
+                {
+                    return res.error.ErrorCode switch
+                    {
+                        ErrorCodes.NotFound => NotFound(res.error),
+                        ErrorCodes.Internal => StatusCode(500, res.error),
+                        _ => BadRequest(res.error)
+                    };
+                }
+
+                return Ok(res.value);
+            }
+            catch(Exception ex)
+            {
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
+            }
+        }
+
+
+        [HttpGet]
+        [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(UserCalorieIntake), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
