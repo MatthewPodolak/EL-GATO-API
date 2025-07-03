@@ -64,7 +64,14 @@ namespace ElGato_API.Models.User
                     ChartDataType = ChartDataType.MakroDist,
                     Period = Period.Last,
                     Name = "Daily makro"
-                }
+                },
+                new ChartStack
+                {
+                    ChartType = ChartType.Linear,
+                    ChartDataType = ChartDataType.Weight,
+                    Period = Period.All,
+                    Name = "Weight"
+                },
             }
         };
     }

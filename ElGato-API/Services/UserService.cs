@@ -710,6 +710,50 @@ namespace ElGato_API.Services
             }
         }
 
+        public async Task<(ErrorResponse error, UserWeightHistoryVMO? data)> GetUserWeightHistory(string userId)
+        {
+            try
+            {
+                var userStatisticsDoc = await _userStatisticsDocument.Find(a => a.UserId == userId).FirstOrDefaultAsync();
+                if (userStatisticsDoc == null)
+                {
+                    var newDoc = await _helperService.CreateMissingDoc(userId, _userStatisticsDocument);
+                    if (newDoc == null)
+                    {
+                        _logger.LogCritical($"User statistics document not found. UserId: {userId}");
+                        return (ErrorResponse.Failed(), null);
+                    }
+
+                    return (ErrorResponse.Ok(), new UserWeightHistoryVMO());
+                }
+
+                var weightGroup = userStatisticsDoc.UserStatisticGroups.FirstOrDefault(g => g.Type == StatisticType.Weight);
+                if(weightGroup == null)
+                {
+                    return (ErrorResponse.Ok(), new UserWeightHistoryVMO());
+                }
+
+                var vm = new UserWeightHistoryVMO();
+                if (weightGroup != null && weightGroup.Records.Any())
+                {
+                    vm.Records = weightGroup.Records.OrderBy(r => r.Date)
+                       .Select(r => new WeightRecord
+                       {
+                           Date = r.Date,
+                           Weight = r.Value
+                       })
+                       .ToList();
+                }
+
+                return (ErrorResponse.Ok(), vm);
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to get user weight history. UserId: {userId}");
+                return (ErrorResponse.Internal(ex.Message), null);
+            }
+        }
+
         public async Task<ErrorResponse> UpdateLayout(string userId, UserLayoutVM model)
         {
             try
@@ -965,6 +1009,59 @@ namespace ElGato_API.Services
             catch(Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to add statistics to user statistics doc. UserId: {userId} Model: {model} Method: {nameof(AddToUserStatistics)}");
+                return ErrorResponse.Internal(ex.Message);
+            }
+        }
+
+        public async Task<ErrorResponse> AddWeight(string userId, AddWeightVM model)
+        {
+            try
+            {
+                var userStatisticsDoc = await _userStatisticsDocument.Find(a => a.UserId == userId).FirstOrDefaultAsync();
+                if(userStatisticsDoc == null)
+                {
+                    var newDoc = await _helperService.CreateMissingDoc(userId, _userStatisticsDocument);
+                    if(newDoc == null)
+                    {
+                        _logger.LogCritical($"User statistics document not found. UserId: {userId}");
+                        return ErrorResponse.NotFound("User statistics document not found.");
+                    }
+
+                    userStatisticsDoc = newDoc;
+                }
+
+                var weightGroup = userStatisticsDoc.UserStatisticGroups.Find(a=>a.Type == StatisticType.Weight);
+                if (weightGroup == null)
+                {
+                    weightGroup = new UserStatisticGroup
+                    {
+                        Type = StatisticType.Weight,
+                        Records = new List<UserStatisticRecord>() { new UserStatisticRecord() { Date = model.Date, Value = model.Weight } }
+                    };
+
+                    userStatisticsDoc.UserStatisticGroups.Add(weightGroup);
+                }
+
+                var alreadyExistingRecord = weightGroup.Records.Find(r => r.Date.Date == model.Date.Date);
+                if (alreadyExistingRecord == null)
+                {
+                    weightGroup.Records.Add(new UserStatisticRecord()
+                    {
+                        Date = model.Date,
+                        Value = model.Weight
+                    });
+                }
+                else
+                {
+                    alreadyExistingRecord.Value = model.Weight;
+                }
+
+                await _userStatisticsDocument.ReplaceOneAsync(d => d.UserId == userId, userStatisticsDoc);
+                return ErrorResponse.Ok();
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to add weight for user. UserId: {userId} Method: {nameof(AddWeight)}");
                 return ErrorResponse.Internal(ex.Message);
             }
         }

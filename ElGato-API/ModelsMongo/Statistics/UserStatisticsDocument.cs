@@ -38,6 +38,7 @@ namespace ElGato_API.ModelsMongo.Statistics
         StepsTaken,
         ActvSessionsCount,
         TimeSpend,
-        TotalDistance
+        TotalDistance,
+        Weight
     }
 }

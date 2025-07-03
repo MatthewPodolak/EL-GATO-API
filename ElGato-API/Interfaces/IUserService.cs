@@ -20,8 +20,10 @@ namespace ElGato_API.Interfaces
         Task<(ErrorResponse error, MuscleUsageDataVMO? data)> GetMuscleUsageData(string userId, string period = "all");
         Task<(ErrorResponse error, MakroDataVMO? data)> GetPastMakroData(string userId, string period = "all");
         Task<(ErrorResponse error, DailyMakroDistributionVMO? data)> GetDailyMakroDisturbtion(string userId, DateTime date);
+        Task<(ErrorResponse error, UserWeightHistoryVMO? data)> GetUserWeightHistory(string userId); 
         Task<ErrorResponse> UpdateLayout(string userId, UserLayoutVM model);
         Task<ErrorResponse> AddToUserStatistics(string userId, List<UserStatisticsVM> model, IClientSessionHandle session = null, bool caloriesNormal = false);
+        Task<ErrorResponse> AddWeight(string userId, AddWeightVM model);
         Task<(ErrorResponse error, string? newPfpUrl)> UpdateProfileInformation(string userId, UserProfileInformationVM model);
         Task<ErrorResponse> ChangeProfileVisilibity(string userId);
         Task<ErrorResponse> UpdateUserStepsTreshold(string userId, int newTreshold);

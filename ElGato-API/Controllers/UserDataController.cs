@@ -381,6 +381,38 @@ namespace ElGato_API.Controllers
             }
         }
 
+        [HttpGet]
+        [Authorize(Policy = "user")]
+        [ProducesResponseType(typeof(UserWeightHistoryVMO), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> GetWeightHistory()
+        {
+            try
+            {
+                var userId = _jwtService.GetUserIdClaim();
+
+                var res = await _userService.GetUserWeightHistory(userId);
+                if (!res.error.Success)
+                {
+                    return res.error.ErrorCode switch
+                    {
+                        ErrorCodes.NotFound => NotFound(res.error),
+                        ErrorCodes.Internal => StatusCode(500, res.error),
+                        ErrorCodes.ModelStateNotValid => BadRequest(res.error),
+                        _ => BadRequest(res.error)
+                    };
+                }
+
+                return Ok(res.data);
+            }
+            catch(Exception ex)
+            {
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
+            }
+        }
+
         [HttpPost]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(AchievmentResponse), StatusCodes.Status200OK)]
@@ -413,6 +445,43 @@ namespace ElGato_API.Controllers
                 return Ok(res);
             }
             catch(Exception ex)
+            {
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
+            }
+        }
+
+        [HttpPost]
+        [Authorize(Policy = "user")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> AddWeight([FromBody] AddWeightVM model)
+        {
+            try
+            {
+                if (!ModelState.IsValid)
+                {
+                    return StatusCode(400, ErrorResponse.StateNotValid<AddWeightVM>());
+                }
+
+                var userId = _jwtService.GetUserIdClaim();
+
+                var res = await _userService.AddWeight(userId, model);
+                if (!res.Success)
+                {
+                    return res.ErrorCode switch
+                    {
+                        ErrorCodes.NotFound => NotFound(res),
+                        ErrorCodes.Internal => StatusCode(500, res),
+                        ErrorCodes.ModelStateNotValid => BadRequest(res),
+                        _ => BadRequest(res)
+                    };
+                }
+
+                return Ok();
+            }
+            catch (Exception ex)
             {
                 return StatusCode(500, ErrorResponse.Internal(ex.Message));
             }
