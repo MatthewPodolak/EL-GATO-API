@@ -755,6 +755,51 @@ namespace ElGato_API.Services
             }
         }
 
+        public async Task<(ErrorResponse error, UserStepsHistoryVMO? data)> GetUserStepsHistory(string userId)
+        {
+            try
+            {
+                var userStatisticsDoc = await _userStatisticsDocument.Find(a => a.UserId == userId).FirstOrDefaultAsync();
+                if (userStatisticsDoc == null)
+                {
+                    var newDoc = await _helperService.CreateMissingDoc(userId, _userStatisticsDocument);
+                    if (newDoc == null)
+                    {
+                        _logger.LogCritical($"User statistics document not found. UserId: {userId}");
+                        return (ErrorResponse.Failed(), null);
+                    }
+
+                    return (ErrorResponse.Ok(), new UserStepsHistoryVMO());
+                }
+
+                var stepsGroup = userStatisticsDoc.UserStatisticGroups.FirstOrDefault(g => g.Type == StatisticType.StepsTaken);
+                if (stepsGroup == null)
+                {
+                    return (ErrorResponse.Ok(), new UserStepsHistoryVMO());
+                }
+
+
+                var vm = new UserStepsHistoryVMO();
+                if (stepsGroup != null && stepsGroup.Records.Any())
+                {
+                    vm.Records = stepsGroup.Records.OrderBy(r => r.Date)
+                       .Select(r => new StepsRecords
+                       {
+                           Date = r.Date,
+                           Value = (int)r.Value,
+                       })
+                       .ToList();
+                }
+
+                return (ErrorResponse.Ok(), vm);
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to get user steps history. UserId: {userId}");
+                return (ErrorResponse.Internal(ex.Message), null);
+            }
+        }
+
         public async Task<ErrorResponse> UpdateLayout(string userId, UserLayoutVM model)
         {
             try

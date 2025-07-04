@@ -72,6 +72,13 @@ namespace ElGato_API.Models.User
                     Period = Period.All,
                     Name = "Weight"
                 },
+                new ChartStack
+                {
+                    ChartType = ChartType.Bar,
+                    ChartDataType = ChartDataType.Steps,
+                    Period = Period.Week,
+                    Name = "Steps"
+                },
             }
         };
     }

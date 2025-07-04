@@ -35,6 +35,7 @@
         NotDefined,
         Carbs,
         MakroDist,
+        Steps
     }
 
     public enum Period
