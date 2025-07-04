@@ -28,6 +28,7 @@ namespace ElGato_API.ModelsMongo.Statistics
     {
         public DateTime Date { get; set; }
         public double Value { get; set; } = 0;
+        public double ValueImperial { get; set; } = 0;
         public TimeSpan TimeValue { get; set; } = TimeSpan.Zero;
     }
 

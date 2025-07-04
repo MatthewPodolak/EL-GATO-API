@@ -460,7 +460,7 @@ namespace ElGato_API.Controllers
         {
             try
             {
-                if (!ModelState.IsValid)
+                if (!ModelState.IsValid && (model.WeightImperial == null && model.WeightMetric == null))
                 {
                     return StatusCode(400, ErrorResponse.StateNotValid<AddWeightVM>());
                 }

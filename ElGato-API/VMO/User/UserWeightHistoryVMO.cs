@@ -8,6 +8,7 @@
     public class WeightRecord
     {
         public DateTime Date { get; set; }
-        public double Weight { get; set; }
+        public double WeightMetric { get; set; }
+        public double WeightImperial { get; set; }
     }
 }

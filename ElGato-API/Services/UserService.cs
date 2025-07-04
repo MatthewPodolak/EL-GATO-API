@@ -740,7 +740,8 @@ namespace ElGato_API.Services
                        .Select(r => new WeightRecord
                        {
                            Date = r.Date,
-                           Weight = r.Value
+                           WeightMetric = r.Value,
+                           WeightImperial = r.ValueImperial
                        })
                        .ToList();
                 }
@@ -1017,6 +1018,19 @@ namespace ElGato_API.Services
         {
             try
             {
+                double weightImperial, weightMetric = 0;
+
+                if (model.WeightMetric.HasValue)
+                {
+                    weightMetric = model.WeightMetric.Value;
+                    weightImperial = model.WeightMetric.Value * 2.20462;
+                }
+                else
+                {
+                    weightImperial = model.WeightImperial.Value;
+                    weightMetric = model.WeightImperial.Value / 2.20462;
+                }
+
                 var userStatisticsDoc = await _userStatisticsDocument.Find(a => a.UserId == userId).FirstOrDefaultAsync();
                 if(userStatisticsDoc == null)
                 {
@@ -1036,7 +1050,7 @@ namespace ElGato_API.Services
                     weightGroup = new UserStatisticGroup
                     {
                         Type = StatisticType.Weight,
-                        Records = new List<UserStatisticRecord>() { new UserStatisticRecord() { Date = model.Date, Value = model.Weight } }
+                        Records = new List<UserStatisticRecord>() { new UserStatisticRecord() { Date = model.Date, Value = weightMetric, ValueImperial = weightImperial } }
                     };
 
                     userStatisticsDoc.UserStatisticGroups.Add(weightGroup);
@@ -1048,12 +1062,14 @@ namespace ElGato_API.Services
                     weightGroup.Records.Add(new UserStatisticRecord()
                     {
                         Date = model.Date,
-                        Value = model.Weight
+                        Value = weightMetric,
+                        ValueImperial = weightImperial
                     });
                 }
                 else
                 {
-                    alreadyExistingRecord.Value = model.Weight;
+                    alreadyExistingRecord.Value = weightMetric;
+                    alreadyExistingRecord.ValueImperial = weightImperial;
                 }
 
                 await _userStatisticsDocument.ReplaceOneAsync(d => d.UserId == userId, userStatisticsDoc);
