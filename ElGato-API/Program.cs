@@ -15,6 +15,7 @@ using Microsoft.OpenApi.Models;
 using MongoDB.Driver;
 using Serilog;
 using System.Text;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -55,7 +56,12 @@ var mongoDatabase = mongoClient.GetDatabase("off");
 builder.Services.AddSingleton<IMongoClient>(mongoClient);
 builder.Services.AddSingleton(mongoDatabase);
 
-builder.Services.AddControllers();
+builder.Services
+    .AddControllers()
+    .AddJsonOptions(opts =>
+    {
+        opts.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>

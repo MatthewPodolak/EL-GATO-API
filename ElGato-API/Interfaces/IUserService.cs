@@ -22,6 +22,7 @@ namespace ElGato_API.Interfaces
         Task<(ErrorResponse error, DailyMakroDistributionVMO? data)> GetDailyMakroDisturbtion(string userId, DateTime date);
         Task<(ErrorResponse error, UserWeightHistoryVMO? data)> GetUserWeightHistory(string userId); 
         Task<(ErrorResponse error, UserStepsHistoryVMO? data)> GetUserStepsHistory(string userId);
+        Task<(ErrorResponse error, UserExercisesVMO? data)> GetUserExercisesList(string userId);
         Task<ErrorResponse> UpdateLayout(string userId, UserLayoutVM model);
         Task<ErrorResponse> AddToUserStatistics(string userId, List<UserStatisticsVM> model, IClientSessionHandle session = null, bool caloriesNormal = false);
         Task<ErrorResponse> AddWeight(string userId, AddWeightVM model);

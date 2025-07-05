@@ -338,6 +338,35 @@ namespace ElGato_API.Controllers
             }
         }
 
+        [HttpGet]
+        [Authorize(Policy = "user")]
+        [ProducesResponseType(typeof(UserExercisesVMO), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> GetUserExercises()
+        {
+            try
+            {
+                var userId = _jwtService.GetUserIdClaim();
+
+                var res = await _userService.GetUserExercisesList(userId);
+                if (!res.error.Success)
+                {
+                    return res.error.ErrorCode switch
+                    {
+                        ErrorCodes.Internal => StatusCode(500, res.error),
+                        _ => BadRequest(res.error)
+                    };
+                }
+
+                return Ok(res.data);
+            }
+            catch(Exception ex)
+            {
+                return StatusCode(500, ErrorResponse.Internal(ex.Message));
+            }
+        }
+
         [HttpPost]
         [Authorize(Policy = "user")]
         [ProducesResponseType(typeof(List<ExercisePastDataVMO>), StatusCodes.Status200OK)]

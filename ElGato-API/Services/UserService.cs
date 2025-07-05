@@ -6,6 +6,7 @@ using ElGato_API.Models.User;
 using ElGato_API.ModelsMongo.Diet;
 using ElGato_API.ModelsMongo.History;
 using ElGato_API.ModelsMongo.Statistics;
+using ElGato_API.ModelsMongo.Training;
 using ElGato_API.VM.UserData;
 using ElGato_API.VMO.Community;
 using ElGato_API.VMO.ErrorResponse;
@@ -24,6 +25,8 @@ namespace ElGato_API.Services
         private readonly IMongoCollection<DietHistoryDocument> _dietHistoryCollection;
         private readonly IMongoCollection<DietDocument> _dailyDietCollection;
         private readonly IMongoCollection<UserStatisticsDocument> _userStatisticsDocument;
+        private readonly IMongoCollection<LikedExercisesDocument> _trainingLikesCollection;
+
         private readonly IHelperService _helperService;
         public UserService(AppDbContext dbContext, ILogger<UserService> logger, IMongoDatabase database, IHelperService helperService) 
         { 
@@ -33,6 +36,7 @@ namespace ElGato_API.Services
             _dietHistoryCollection = database.GetCollection<DietHistoryDocument>("DietHistory");
             _dailyDietCollection = database.GetCollection<DietDocument>("DailyDiet");
             _userStatisticsDocument = database.GetCollection<UserStatisticsDocument>("Statistics");
+            _trainingLikesCollection = database.GetCollection<LikedExercisesDocument>("LikedExercises");
             _helperService = helperService;
         }
 
@@ -799,7 +803,38 @@ namespace ElGato_API.Services
                 return (ErrorResponse.Internal(ex.Message), null);
             }
         }
+        public async Task<(ErrorResponse error, UserExercisesVMO? data)> GetUserExercisesList(string userId)
+        {
+            try
+            {
+                var vmo = new UserExercisesVMO();
 
+                var userExerciseLikesCollection = await _trainingLikesCollection.Find(a=>a.UserId == userId).FirstOrDefaultAsync();
+                if(userExerciseLikesCollection == null)
+                {
+                    await _helperService.CreateMissingDoc(userId, _userStatisticsDocument);
+                }
+
+                if (userExerciseLikesCollection != null && userExerciseLikesCollection.Own.Any())
+                {
+                    vmo.ExerciseName.AddRange(userExerciseLikesCollection.Own
+                    .Select(x => x.Name)
+                    .ToList());
+                }
+
+                var allExercises = await _dbContext.Exercises.Select(e => e.Name).ToListAsync();
+                vmo.ExerciseName.AddRange(allExercises);
+
+                vmo.ExerciseName = vmo.ExerciseName.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+                return (ErrorResponse.Ok(), vmo);
+            }
+            catch(Exception ex)
+            {
+                _logger.LogError(ex, $"Failed while trying to get user exercises. UserId: {userId}");
+                return (ErrorResponse.Internal(ex.Message), null);
+            }
+        }
         public async Task<ErrorResponse> UpdateLayout(string userId, UserLayoutVM model)
         {
             try
@@ -1246,5 +1281,6 @@ namespace ElGato_API.Services
                 return ErrorResponse.Internal(ex.Message);
             }
         }
+
     }
 }
