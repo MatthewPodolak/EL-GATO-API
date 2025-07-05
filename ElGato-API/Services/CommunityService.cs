@@ -29,6 +29,7 @@ namespace ElGato_API.Services
         private readonly IMongoCollection<CardioHistoryDocument> _cardioHistoryDocument;
         private readonly IMongoCollection<DailyTrainingDocument> _trainingCollection;
         private readonly IMongoCollection<TrainingHistoryDocument> _trainingHistoryCollection;
+        private readonly IMongoCollection<ExercisesHistoryDocument> _exerciseHistory;
         private readonly IMongoCollection<UserStatisticsDocument> _userStatisticsDocument;
         private readonly IHelperService _helperService;
         public CommunityService(AppDbContext context, ILogger<CommunityService> logger, IDbContextFactory<AppDbContext> contextFactory, IMongoDatabase database, IHelperService helperService) 
@@ -42,6 +43,7 @@ namespace ElGato_API.Services
             _trainingHistoryCollection = database.GetCollection<TrainingHistoryDocument>("TrainingHistory");
             _userStatisticsDocument = database.GetCollection<UserStatisticsDocument>("Statistics");
             _cardioHistoryDocument = database.GetCollection<CardioHistoryDocument>("CardioHistory");
+            _exerciseHistory = database.GetCollection<ExercisesHistoryDocument>("ExercisesHistory");
             _helperService = helperService;
         }
 
@@ -477,6 +479,9 @@ namespace ElGato_API.Services
                     new Leaderboard { Type = LeaderboardType.Activity },
                     new Leaderboard { Type = LeaderboardType.Running  },
                     new Leaderboard { Type = LeaderboardType.Swimming },
+                    new Leaderboard { Type = LeaderboardType.Benchpress },
+                    new Leaderboard { Type = LeaderboardType.Deadlift },
+                    new Leaderboard { Type = LeaderboardType.Squats },
                 };
 
                 var user = await ctx.AppUser.Where(a => a.Id == userId).Select(a => new { a.Name, Pfp = a.Pfp, a.Id }).FirstOrDefaultAsync();
@@ -491,6 +496,9 @@ namespace ElGato_API.Services
                 var statsDoc = await _userStatisticsDocument.Find(s => s.UserId == userId) .FirstOrDefaultAsync();
                 var dailyDoc = await _cardioDocument.Find(d => d.UserId == userId).FirstOrDefaultAsync();
                 var historyDoc = await _cardioHistoryDocument.Find(h => h.UserId == userId).FirstOrDefaultAsync();
+                var dailyDocGym = await _trainingCollection.Find(a=>a.UserId == userId).FirstOrDefaultAsync();
+                var historyDocGym = await _exerciseHistory.Find(a => a.UserId == userId).FirstOrDefaultAsync();
+
 
                 var now = DateTime.UtcNow;
                 var yearAgo = now.AddYears(-1);
@@ -607,6 +615,66 @@ namespace ElGato_API.Services
                     BestIn(yearAgo)?.Let(r => lb.Year.Add(r));
                     BestIn(monthAgo)?.Let(r => lb.Month.Add(r));
                     BestIn(weekAgo)?.Let(r => lb.Week.Add(r));
+                }
+
+                var liftSessions = new List<(LeaderboardType Type, DateTime Date, double WeightKg, int Reps)>();
+                if (dailyDocGym?.Trainings != null)
+                    foreach (var day in dailyDocGym.Trainings)
+                        foreach (var ex in day.Exercises.Where(e => (e.Name.Contains("Benchpress") || e.Name.Contains("Deadlift") || e.Name.Contains("Squat"))))
+                        {
+                            var topSeries = ex.Series.OrderByDescending(s => s.WeightKg).FirstOrDefault();
+                            if (topSeries == null) continue;
+                            var type = ex.Name.Contains("Benchpress") ? LeaderboardType.Benchpress
+                                     : ex.Name.Contains("Deadlift") ? LeaderboardType.Deadlift
+                                     : LeaderboardType.Squats;
+                            liftSessions.Add((Type: type, Date: day.Date, WeightKg: topSeries.WeightKg, Reps: topSeries.Repetitions));
+                        }
+                if (historyDocGym?.ExerciseHistoryLists != null)
+                    foreach (var list in historyDocGym.ExerciseHistoryLists)
+                    {
+                        var type = list.ExerciseName.Contains("Benchpress") ? LeaderboardType.Benchpress
+                                 : list.ExerciseName.Contains("Deadlift") ? LeaderboardType.Deadlift
+                                 : list.ExerciseName.Contains("Squat") ? LeaderboardType.Squats
+                                 : (LeaderboardType?)null;
+                        if (type == null) continue;
+                        foreach (var entry in list.ExerciseData)
+                        {
+                            var topSeries = entry.Series.OrderByDescending(s => s.WeightKg).FirstOrDefault();
+                            if (topSeries == null) continue;
+                            liftSessions.Add((Type: type.Value, Date: entry.Date, WeightKg: topSeries.WeightKg, Reps: topSeries.Repetitions));
+                        }
+                    }
+
+                foreach (var liftType in new[] { LeaderboardType.Benchpress, LeaderboardType.Deadlift, LeaderboardType.Squats })
+                {
+                    var lb = vmo.First(l => l.Type == liftType);
+                    LeaderboardRecord? BestLift(DateTime? since)
+                    {
+                        var best = liftSessions
+                            .Where(s => s.Type == liftType && (!since.HasValue || s.Date >= since.Value))
+                            .OrderByDescending(s => s.WeightKg)
+                            .ThenByDescending(s => s.Reps)
+                            .FirstOrDefault();
+
+                        if (best == default) return null;
+
+                        return new LeaderboardRecord
+                        {
+                            UserData = userData,
+                            Value = best.WeightKg,
+                            GymSpecific = new LeaderboardGymData
+                            {
+                                WeightKg = best.WeightKg,
+                                WeightLbs = Math.Round(best.WeightKg * 2.20462, 2),
+                                Repetitions = best.Reps
+                            }
+                        };
+                    }
+
+                    BestLift(null)?.Let(r => lb.All.Add(r));
+                    BestLift(yearAgo)?.Let(r => lb.Year.Add(r));
+                    BestLift(monthAgo)?.Let(r => lb.Month.Add(r));
+                    BestLift(weekAgo)?.Let(r => lb.Week.Add(r));
                 }
 
                 return (vmo, ErrorResponse.Ok());

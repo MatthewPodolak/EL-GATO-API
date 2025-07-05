@@ -19,6 +19,7 @@
         public LeaderboardUserData UserData { get; set; } = new LeaderboardUserData();
         public double Value { get; set; } = 0;
         public LeaderboardCardioData? CardioSpecific {  get; set; }
+        public LeaderboardGymData? GymSpecific { get; set; }
     }
     public class LeaderboardUserData
     {
@@ -37,12 +38,22 @@
         public DateTime ExerciseDate { get; set; }
     }
 
+    public class LeaderboardGymData
+    {
+        public double WeightKg { get; set; }
+        public double WeightLbs { get; set; }
+        public int Repetitions { get; set; }
+    }
+
     public enum LeaderboardType
     {
         Calories,
         Activity,
         Steps,
         Running,
-        Swimming
+        Swimming,
+        Benchpress,
+        Deadlift,
+        Squats
     }
 }
