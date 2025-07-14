@@ -1,9 +1,11 @@
-﻿namespace ElGato_API.Data
+﻿using MongoDB.Driver;
+
+namespace ElGato_API.Data
 {
     public interface IMongoInits
     {
-        Task CreateUserDietDocument(string userId);
-        Task CreateUserTrainingDocument(string userId);
-        Task CreateUserExerciseHistoryDocument(string userId);
+        Task CreateUserDietDocument(string userId, IClientSessionHandle session = null, CancellationToken ct = default);
+        Task CreateUserTrainingDocument(string userId, IClientSessionHandle session = null, CancellationToken ct = default);
+        Task CreateUserExerciseHistoryDocument(string userId, IClientSessionHandle session = null, CancellationToken ct = default);
     }
 }

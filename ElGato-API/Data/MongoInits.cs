@@ -11,61 +11,76 @@ namespace ElGato_API.Data
         private readonly IMongoCollection<DietDocument> _dietCollection;
         private readonly IMongoCollection<DailyTrainingDocument> _trainingCollection;
         private readonly IMongoCollection<ExercisesHistoryDocument> _exercisesHistoryCollection;
-        public MongoInits(IMongoDatabase database) 
+
+        public MongoInits(IMongoDatabase database)
         {
             _dietCollection = database.GetCollection<DietDocument>("DailyDiet");
             _trainingCollection = database.GetCollection<DailyTrainingDocument>("DailyTraining");
             _exercisesHistoryCollection = database.GetCollection<ExercisesHistoryDocument>("ExercisesHistory");
         }
-        public async Task CreateUserDietDocument(string userId) 
+
+        public async Task CreateUserDietDocument(string userId, IClientSessionHandle session, CancellationToken ct = default)
         {
             try
             {
-                var existingDocument = await _dietCollection.Find(d => d.UserId == userId).FirstOrDefaultAsync();
-                if (existingDocument == null)
+                var existing = await _dietCollection.Find(session, d => d.UserId == userId).FirstOrDefaultAsync(ct);
+
+                if (existing == null)
                 {
-                    var newDoc = new DietDocument { UserId = userId, DailyPlans = new List<DailyDietPlan>() };
-                    await _dietCollection.InsertOneAsync(newDoc);
+                    var newDoc = new DietDocument
+                    {
+                        UserId = userId,
+                        DailyPlans = new List<DailyDietPlan>()
+                    };
+
+                    await _dietCollection.InsertOneAsync(session, newDoc, cancellationToken: ct);
                 }
             }
-            catch (Exception ex) 
+            catch (Exception ex)
             {
                 throw new Exception("Error creating user diet document", ex);
             }
         }
 
-        public async Task CreateUserExerciseHistoryDocument(string userId)
+        public async Task CreateUserExerciseHistoryDocument(string userId, IClientSessionHandle session, CancellationToken ct = default)
         {
             try
             {
-                var existingDocument = await _exercisesHistoryCollection.Find(a=>a.UserId == userId).FirstOrDefaultAsync();
-                if(existingDocument == null)
+                var existing = await _exercisesHistoryCollection.Find(session, h => h.UserId == userId).FirstOrDefaultAsync(ct);
+
+                if (existing == null)
                 {
-                    var newDoc = new ExercisesHistoryDocument()
+                    var newDoc = new ExercisesHistoryDocument
                     {
                         UserId = userId,
                         ExerciseHistoryLists = new List<ExerciseHistoryList>(),
                     };
-                    await _exercisesHistoryCollection.InsertOneAsync(newDoc);
+
+                    await _exercisesHistoryCollection.InsertOneAsync(session, newDoc, cancellationToken: ct);
                 }
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
-                throw new Exception("Error creating user diet document", ex);
+                throw new Exception("Error creating user exercise‐history document", ex);
             }
         }
 
-        public async Task CreateUserTrainingDocument(string userId)
+        public async Task CreateUserTrainingDocument(string userId, IClientSessionHandle session, CancellationToken ct = default)
         {
             try
             {
-                var existingDocument = await _trainingCollection.Find(a=>a.UserId == userId).FirstOrDefaultAsync();
-                if(existingDocument == null)
+                var existing = await _trainingCollection.Find(session, t => t.UserId == userId).FirstOrDefaultAsync(ct);
+
+                if (existing == null)
                 {
-                    var newDoc = new DailyTrainingDocument { UserId = userId, Trainings = new List<DailyTrainingPlan>() };
-                    await _trainingCollection.InsertOneAsync(newDoc);
+                    var newDoc = new DailyTrainingDocument
+                    {
+                        UserId = userId,
+                        Trainings = new List<DailyTrainingPlan>()
+                    };
+
+                    await _trainingCollection.InsertOneAsync(session, newDoc, cancellationToken: ct);
                 }
-                
             }
             catch (Exception ex)
             {

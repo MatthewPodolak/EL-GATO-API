@@ -1,15 +1,11 @@
-﻿using ElGato_API.Data;
-using ElGato_API.Data.JWT;
-using ElGato_API.Interfaces;
+﻿using ElGato_API.Interfaces;
+using ElGato_API.Interfaces.Orchesters;
 using ElGato_API.VM;
 using ElGato_API.VM.User_Auth;
 using ElGato_API.VMO.ErrorResponse;
-using ElGato_API.VMO.User;
 using ElGato_API.VMO.UserAuth;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore.Metadata.Internal;
 
 namespace ElGato_API.Controllers
 {
@@ -18,76 +14,50 @@ namespace ElGato_API.Controllers
     public class AccountController : Controller
     {
         private readonly IAccountService _accountService;
-        private readonly IDietService _dietService;
-        private readonly IMongoInits _mongoInits;
-        private readonly IJwtService _jwtService;
+        private readonly IAccountOrchester _accountOrchester;
 
-        public AccountController(IAccountService accountService, IDietService dietService, IMongoInits mongoInits, IJwtService jwtService)
+        public AccountController(IAccountService accountService, IAccountOrchester accountOrchester)
         {
             _accountService = accountService;
-            _dietService = dietService;
-            _mongoInits = mongoInits;
-            _jwtService = jwtService;
+            _accountOrchester = accountOrchester;
         }
 
-        /// <summary>
-        /// Handles user registration along with a questionary submission. 
-        /// </summary>
-        /// <param name="registerVM">An object containing registration creds and questionary information.</param>
-        /// <remarks>
-        /// This method allows anonymous access and handles both user registration along with questionary processing and saving, registration will fail if the questionary data is invalid.
-        /// </remarks>
         [HttpPost]
         [AllowAnonymous]
         [ProducesResponseType(typeof(RegisterVMO), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status409Conflict)]
-        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> RegisterWithQuestionary([FromBody]RegisterWithQuestVM registerVM) 
+        [ProducesResponseType(typeof(RegisterVMO), StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(typeof(RegisterVMO), StatusCodes.Status409Conflict)]
+        [ProducesResponseType(typeof(RegisterVMO), StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> RegisterWithQuestionary([FromBody]RegisterWithQuestVM model) 
         {
             if (!ModelState.IsValid)
             {
                 return BadRequest(ErrorResponse.StateNotValid<RegisterWithQuestVM>());
             }
 
-            RegisterVMO registerVMO = new RegisterVMO();
-
             try
             {
-                var mailStatus = await _accountService.IsEmailAlreadyUsed(registerVM.Email);
+                var vmo = new RegisterVMO();
+
+                var mailStatus = await _accountService.IsEmailAlreadyUsed(model.Email);
                 if (mailStatus)
                 {
-                    return StatusCode(409, ErrorResponse.AlreadyExists("Account with given E-mail address already exists"));
+                    vmo.ErrorResponse = ErrorResponse.AlreadyExists("E-mail address already exists.");
+                    return StatusCode(409, vmo);
                 }
-                    
-                var calorieIntake = _dietService.CalculateCalories(registerVM.Questionary);
-                registerVMO.calorieIntake = calorieIntake;
 
-                var res = await _accountService.RegisterUser(registerVM, calorieIntake);
-                if (!res.Succeeded) 
+                var res = await _accountOrchester.RegisterWithQuestionary(model);
+                if (!res.ErrorResponse.Success)
                 {
-                    registerVMO.Errors = res.Errors; 
-                    registerVMO.Success = false; 
-
-                    return StatusCode(400, ErrorResponse.Failed(res.Errors.ToString()) ); 
+                    return res.ErrorResponse.ErrorCode switch
+                    {
+                        ErrorCodes.AlreadyExists => StatusCode(409, res),
+                        ErrorCodes.Internal => StatusCode(500, res),
+                        _ => BadRequest(res)
+                    };
                 }
 
-                var loginRes = await _accountService.LoginUser(new LoginVM() { Email = registerVM.Email, Password = registerVM.Password });
-                if (!loginRes.IdentityResult.Succeeded) 
-                {
-                    registerVMO.Success = false;
-
-                    return StatusCode(400, ErrorResponse.Failed(res.Errors.ToString()));
-                }
-
-                registerVMO.Success = true;
-                registerVMO.JWT = loginRes.JwtToken;
-
-                await _mongoInits.CreateUserDietDocument(_jwtService.GetUserIdClaimStringBased(loginRes.JwtToken));
-                await _mongoInits.CreateUserTrainingDocument(_jwtService.GetUserIdClaimStringBased(loginRes.JwtToken));
-                await _mongoInits.CreateUserExerciseHistoryDocument(_jwtService.GetUserIdClaimStringBased(loginRes.JwtToken));
-
-                return Ok(registerVMO);
+                return Ok(res);
             }
             catch (Exception ex)
             {
@@ -95,10 +65,7 @@ namespace ElGato_API.Controllers
             }
         }
 
-        /// <summary>
-        /// Handles user loging in.
-        /// </summary>
-        /// <param name="loginVM">An object containing login creds</param>
+
         [HttpPost]
         [AllowAnonymous]
         [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]

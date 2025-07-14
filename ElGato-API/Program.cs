@@ -117,6 +117,7 @@ builder.Services.AddScoped<IHelperService, HelperService>();
 builder.Services.AddScoped<ITrainingOrchester, TrainingOrchester>();
 builder.Services.AddScoped<ICardioOrchester, CardioOrchester>();
 builder.Services.AddScoped<IUserDataOrchester, UserDataOrchester>();
+builder.Services.AddScoped<IAccountOrchester, AccountOrchester>();
 
 //IDENTITY
 builder.Services.AddIdentity<AppUser, IdentityRole>()
@@ -167,6 +168,12 @@ builder.Services.Configure<IdentityOptions>(options =>
     options.Password.RequireDigit = true;
     options.Password.RequiredLength = 8;
 });
+
+//builder.Services.AddHttpsRedirection(options =>
+//{
+//    options.RedirectStatusCode = StatusCodes.Status308PermanentRedirect;
+//    options.HttpsPort = 443;
+//});
 
 var app = builder.Build();
 

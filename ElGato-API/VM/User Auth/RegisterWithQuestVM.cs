@@ -6,15 +6,15 @@ namespace ElGato_API.VM.User_Auth
     public class RegisterWithQuestVM
     {
 
-        [Required]
+        [Required(ErrorMessage = "E-mail is necessary.")]
         [EmailAddress]
         public string Email { get; set; }
 
-        [Required]
+        [Required(ErrorMessage = "Password is necessary.")]
         [DataType(DataType.Password)]
         public string Password { get; set; }
 
-        [Required]
+        [Required(ErrorMessage = "Questionary is currently necessary.")]
         public QuestionaryVM Questionary { get; set; }
     }
 }
