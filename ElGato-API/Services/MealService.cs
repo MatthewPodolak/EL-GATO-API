@@ -706,7 +706,7 @@ namespace ElGato_API.Services
 
                 if (likedMeals == null || !likedMeals.Any())
                 {
-                    return (ErrorResponse.NotFound("No meals found for liked meals."), res);
+                    return (ErrorResponse.Ok("No meals found for liked meals."), res);
                 }
 
                 var userIds = likedMeals.Select(meal => meal.UserId).Distinct().ToList();
@@ -768,7 +768,7 @@ namespace ElGato_API.Services
                     var newDoc = await _helperService.CreateMissingDoc(userId, _mealLikesCollection);
                     if(newDoc == null)
                     {
-                        return (ErrorResponse.NotFound("User saved document is null."), res);
+                        return (ErrorResponse.Ok("User saved document is null."), res);
                     }
 
                     doc = newDoc;
@@ -780,7 +780,7 @@ namespace ElGato_API.Services
 
                 if (savedMeals == null || !savedMeals.Any())
                 {
-                    return (ErrorResponse.NotFound("No meals found for saved meals."), res);
+                    return (ErrorResponse.Ok("No meals found for saved meals."), res);
                 }
 
                 var userIds = savedMeals.Select(meal => meal.UserId).Distinct().ToList();
@@ -981,7 +981,7 @@ namespace ElGato_API.Services
                 var ownMealDosc = await _ownMealCollection.Find(r => r.UserId == userId).FirstOrDefaultAsync();
                 if(ownMealDosc == null)
                 {
-                    return (ErrorResponse.Ok(), null);
+                    return (ErrorResponse.Ok(), new List<SimpleMealVMO>());
                 }
 
                 var ownMeals = await _mealsCollection.Find(a => ownMealDosc.OwnMealsId.Contains(a.Id.ToString())).ToListAsync();
@@ -999,7 +999,7 @@ namespace ElGato_API.Services
                     {
                         Id = meal.Id,
                         StringId = meal.Id.ToString(),
-                        Name = meal.Name??"xdddd",
+                        Name = meal.Name??"Meal",
                         Time = meal.Time,
                         Img = meal.Img,
                         Kcal = meal.MealsMakro.Kcal,
@@ -1020,7 +1020,7 @@ namespace ElGato_API.Services
                         Own = meal.UserId == userId
                     }).ToList();
 
-                    return (ErrorResponse.Ok(), res);
+                    return (ErrorResponse.Ok(), res ?? new List<SimpleMealVMO>());
                 }
 
             }
