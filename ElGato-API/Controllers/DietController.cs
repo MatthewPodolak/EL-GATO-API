@@ -68,43 +68,6 @@ namespace ElGato_API.Controllers
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> AddIngridientToMeal([FromBody] AddIngridientVM model)
-        {
-            try
-            {
-                string userId = _jwtService.GetUserIdClaim();
-
-                if (!ModelState.IsValid)
-                {
-                    return StatusCode(400, ErrorResponse.StateNotValid<AddIngridientVM>());
-                }
-
-                var res = await _dietService.AddIngridientToMeal(userId, model);
-                if (!res.Success)
-                {
-                    return res.ErrorCode switch
-                    {
-                        ErrorCodes.NotFound => NotFound(res),
-                        ErrorCodes.Internal => StatusCode(500, res),
-                        _ => BadRequest(res),
-                    };
-                }
-
-                return Ok();
-
-            }
-            catch (Exception ex)
-            {
-                return StatusCode(500, ErrorResponse.Internal(ex.Message));
-            }
-        }
-
-        [HttpPost]
-        [Authorize(Policy = "user")]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
-        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
-        [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> AddIngriedientsToMeal([FromBody] AddIngridientsVM model)
         {
             try
@@ -344,13 +307,13 @@ namespace ElGato_API.Controllers
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
         [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> GetListOfCorrelatedItemByName(string name)
+        public async Task<IActionResult> GetListOfCorrelatedItemByName(string name, int count = 20, string? afterCode = null)
         {
             try
             {
                 string userId = _jwtService.GetUserIdClaim();
 
-                var res = await _dietService.GetListOfIngridientsByName(name);
+                var res = await _dietService.GetListOfIngridientsByName(name, count, afterCode);
 
                 if (!res.error.Success)
                 {

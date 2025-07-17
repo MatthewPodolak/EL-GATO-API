@@ -444,24 +444,30 @@ namespace ElGato_API.Services
             }
         }
 
-        public async Task<(List<IngridientVMO>? ingridients, ErrorResponse error)> GetListOfIngridientsByName(string name)
+        public async Task<(List<IngridientVMO>? ingridients, ErrorResponse error)> GetListOfIngridientsByName(string name, int count = 20, string? afterCode = null)
         {
             try
             {
-                var filter = Builders<ProductDocument>.Filter.Regex("product_name", new BsonRegularExpression(name, "i"));
-                var projection = Builders<ProductDocument>.Projection
-                    .Include("product_name")
-                    .Include("nutriments")
-                    .Include("nutrition_data_prepared_per")
-                    .Include("brands")
-                    .Include("_id");
+                var filterBuilder = Builders<ProductDocument>.Filter;
+                var filter = filterBuilder.Text(name);
 
-                var findOptions = new FindOptions<ProductDocument, BsonDocument>
+                if (!string.IsNullOrEmpty(afterCode))
                 {
-                    Projection = projection
-                };
+                    filter = filterBuilder.And(filter, filterBuilder.Gt(d => d.Code, afterCode));
+                }
 
-                var docList = await _productCollection.Find(filter).Project<ProductDocument>(projection).Limit(10).ToListAsync();
+                var docList = await _productCollection
+                  .Find(filter)
+                  .Project<ProductDocument>(Builders<ProductDocument>.Projection
+                        .Include(d => d.Product_name)
+                        .Include(d => d.Nutriments)
+                        .Include(d => d.Nutrition_data_prepared_per)
+                        .Include(d => d.Brands)
+                        .Include(d => d.Code)
+                      )
+                  .SortBy(d => d.Code)
+                  .Limit(count)
+                  .ToListAsync();
 
                 List<IngridientVMO> ingridients = docList
                     .Where(doc =>
@@ -492,7 +498,6 @@ namespace ElGato_API.Services
                 _logger.LogError(ex, $"Failed while trying to get ingriedients by name. Name: {name} Method: {nameof(GetListOfIngridientsByName)}");
                 return (null, ErrorResponse.Internal(ex.Message));
             }
-
         }
 
         public async Task<(ErrorResponse errorResponse, DietDocVMO model)> GetUserDoc(string userId)
