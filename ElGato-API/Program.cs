@@ -118,6 +118,7 @@ builder.Services.AddScoped<ITrainingOrchester, TrainingOrchester>();
 builder.Services.AddScoped<ICardioOrchester, CardioOrchester>();
 builder.Services.AddScoped<IUserDataOrchester, UserDataOrchester>();
 builder.Services.AddScoped<IAccountOrchester, AccountOrchester>();
+builder.Services.AddScoped<IMealOrchester, MealOrchester>();
 
 //IDENTITY
 builder.Services.AddIdentity<AppUser, IdentityRole>()

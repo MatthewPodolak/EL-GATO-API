@@ -826,7 +826,7 @@ namespace ElGato_API.Services
             }
         }
 
-        public async Task<(ErrorResponse error, AchievmentResponse? ach)> ProcessAndPublishMeal(string userId, PublishMealVM model)
+        public async Task<ErrorResponse> PublishMeal(string userId, PublishMealVM model, IClientSessionHandle mongoSession)
         {
             try
             {
@@ -872,7 +872,7 @@ namespace ElGato_API.Services
                     MealsMakro = model.Makro,
                     Difficulty = SetMealDifficulty(ConvertUserTimeToInt(model.Time ?? "30"), model.Ingridients.Count(), model.Steps.Count()),
                 };
-                await _mealsCollection.InsertOneAsync(doc);
+                await _mealsCollection.InsertOneAsync(mongoSession ,doc);
                 var createdMealId = doc.Id;
 
                 var userRecord = await _ownMealCollection.Find(r => r.UserId == userId).FirstOrDefaultAsync();
@@ -884,7 +884,7 @@ namespace ElGato_API.Services
                         OwnMealsId = new List<string>{ createdMealId.ToString() },
                         SavedIngMeals = new List<MealPlan>()
                     };
-                    await _ownMealCollection.InsertOneAsync(ownMealsDocument);
+                    await _ownMealCollection.InsertOneAsync(mongoSession ,ownMealsDocument);
                 }
                 else
                 {
@@ -892,32 +892,17 @@ namespace ElGato_API.Services
                     {
                         userRecord.OwnMealsId.Add(createdMealId.ToString());
                         var update = Builders<OwnMealsDocument>.Update.Set(r => r.OwnMealsId, userRecord.OwnMealsId);
-                        await _ownMealCollection.UpdateOneAsync(r => r.UserId == userId, update);
+                        await _ownMealCollection.UpdateOneAsync(mongoSession, r => r.UserId == userId, update);
                     }
                 }
-
-                var currentAchievmentCounter = await _achievmentService.GetCurrentAchivmentIdFromFamily("COOK", userId);
-                if (!currentAchievmentCounter.error.Success) 
-                {
-                    _logger.LogError($"Failed while trying to get achievment. UserId: {userId} Data: {model} Method: {nameof(ProcessAndPublishMeal)}");
-                    return (ErrorResponse.Failed($"Something went wrong while trying to get current achievment. {currentAchievmentCounter.error.ErrorMessage}"), null); 
-                }
-
-                if (!string.IsNullOrEmpty(currentAchievmentCounter.achievmentName))
-                {
-                    var achievmentRes = await _achievmentService.IncrementAchievmentProgress(currentAchievmentCounter.achievmentName, userId, 1);
-                    if (!achievmentRes.error.Success) { return (new ErrorResponse() { Success = false, ErrorMessage = achievmentRes.error.ErrorMessage, ErrorCode = ErrorCodes.Failed }, null); }
-
-                    return (ErrorResponse.Ok(), achievmentRes.ach ?? new AchievmentResponse() { Status = ErrorResponse.Ok() });
-                }
              
-                return (ErrorResponse.Ok(), null);
+                return ErrorResponse.Ok();
 
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Failed while trying to publish meal. UserId: {userId} Data: {model} Method: {nameof(ProcessAndPublishMeal)}");
-                return (ErrorResponse.Internal(ex.Message), null);
+                _logger.LogError(ex, $"Failed while trying to publish meal. UserId: {userId} Data: {model} Method: {nameof(PublishMeal)}");
+                return ErrorResponse.Internal(ex.Message);
             }
         }
 

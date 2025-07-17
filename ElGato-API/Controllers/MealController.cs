@@ -1,5 +1,6 @@
 ﻿using ElGato_API.Data.JWT;
 using ElGato_API.Interfaces;
+using ElGato_API.Interfaces.Orchesters;
 using ElGato_API.VM.Meal;
 using ElGato_API.VMO.Achievments;
 using ElGato_API.VMO.ErrorResponse;
@@ -18,10 +19,12 @@ namespace ElGato_API.Controllers
     {
         private readonly IJwtService _jwtService;
         private readonly IMealService _mealService;
-        public MealController(IJwtService jwtService, IMealService mealService)
+        private readonly IMealOrchester _mealOrchester;
+        public MealController(IJwtService jwtService, IMealService mealService, IMealOrchester mealOrchester)
         {
             _mealService = mealService;
             _jwtService = jwtService;
+            _mealOrchester = mealOrchester;
         }
 
         [HttpGet]
@@ -439,18 +442,18 @@ namespace ElGato_API.Controllers
 
                 string userId = _jwtService.GetUserIdClaim();
 
-                var res = await _mealService.ProcessAndPublishMeal(userId, model);
-                if (!res.error.Success) 
+                var res = await _mealOrchester.ProcessAndPublishMeal(userId, model);
+                if (!res.Status.Success) 
                 { 
-                    return res.error.ErrorCode switch
+                    return res.Status.ErrorCode switch
                     {
-                        ErrorCodes.Failed => BadRequest(res.error),
-                        ErrorCodes.Internal => StatusCode(500, res.error),
-                        _ => BadRequest(res.error),
+                        ErrorCodes.Failed => BadRequest(res.Status),
+                        ErrorCodes.Internal => StatusCode(500, res.Status),
+                        _ => BadRequest(res.Status),
                     };
                 }
 
-                if (res.ach != null) { return Ok(res.ach); }
+                if (res.Achievment != null) { return Ok(res.Achievment); }
 
                 return Ok(new AchievmentResponse() { Status = ErrorResponse.Ok() });
             }
