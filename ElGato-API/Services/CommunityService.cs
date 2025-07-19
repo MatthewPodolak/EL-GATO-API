@@ -16,6 +16,8 @@ using Microsoft.EntityFrameworkCore;
 using MongoDB.Driver;
 using System;
 using System.Collections.Generic;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace ElGato_API.Services
 {
@@ -1250,63 +1252,124 @@ namespace ElGato_API.Services
 
                 var userTrainingDoc = await _trainingCollection.Find(a => a.UserId == userId).FirstOrDefaultAsync();
                 var userTrainingHistoryDoc = await _trainingHistoryCollection.Find(a => a.UserId == userId).FirstOrDefaultAsync();
+                var userExerciseHistoryDoc = await _exerciseHistory.Find(a => a.UserId == userId).FirstOrDefaultAsync();
 
-                var allExercises = new List<DailyExercise>();
+                var gymLifts = new[] { "Benchpress", "Deadlift", "Squat" };
 
-                if (userTrainingDoc != null)
+                if (userTrainingDoc?.Trainings != null)
                 {
-                    allExercises.AddRange(userTrainingDoc.Trainings.SelectMany(t => t.Exercises));
-                }
-
-                if (userTrainingHistoryDoc != null)
-                {
-                    allExercises.AddRange(userTrainingHistoryDoc.DailyTrainingPlans.SelectMany(t => t.Exercises));
-                }
-
-                foreach (var exercise in allExercises)
-                {
-                    if (exercise.Series == null || exercise.Series.Count == 0)
-                        continue;
-
-                    foreach (var series in exercise.Series)
+                    foreach (var training in userTrainingDoc.Trainings)
                     {
-                        var score = series.WeightKg * (1 + series.Repetitions / 30.0);
-
-                        if (!bestLifts.ContainsKey(exercise.Name))
+                        foreach (var ex in training.Exercises)
                         {
-                            bestLifts[exercise.Name] = new BestLiftData
-                            {
-                                Name = exercise.Name,
-                                WeightKg = series.WeightKg,
-                                Repetitions = series.Repetitions
-                            };
-                        }
-                        else
-                        {
-                            var existing = bestLifts[exercise.Name];
-                            var existingScore = existing.WeightKg * existing.Repetitions;
+                            if (!gymLifts.Any(l => ex.Name.Contains(l, StringComparison.OrdinalIgnoreCase)))
+                                continue;
 
-                            if (score > existingScore)
-                            {
-                                bestLifts[exercise.Name] = new BestLiftData
-                                {
-                                    Name = exercise.Name,
-                                    WeightKg = series.WeightKg,
-                                    Repetitions = series.Repetitions
-                                };
-                            }
+                            var bestSeries = ex.Series?
+                                .OrderByDescending(s => s.WeightKg)
+                                .ThenByDescending(s => s.Repetitions)
+                                .FirstOrDefault();
+
+                            if (bestSeries == null) continue;
+
+                            UpdateBestLift(bestLifts, ex.Name, bestSeries.WeightKg, bestSeries.Repetitions);
                         }
                     }
                 }
 
+                if (userExerciseHistoryDoc?.ExerciseHistoryLists != null)
+                {
+                    foreach (var list in userExerciseHistoryDoc.ExerciseHistoryLists)
+                    {
+                        if (!gymLifts.Any(l => list.ExerciseName.Contains(l, StringComparison.OrdinalIgnoreCase)))
+                            continue;
+
+                        foreach (var entry in list.ExerciseData)
+                        {
+                            var bestSeries = entry.Series?
+                                .OrderByDescending(s => s.WeightKg)
+                                .ThenByDescending(s => s.Repetitions)
+                                .FirstOrDefault();
+
+                            if (bestSeries == null) continue;
+
+                            UpdateBestLift(bestLifts, list.ExerciseName, bestSeries.WeightKg, bestSeries.Repetitions);
+                        }
+                    }
+                }
+
+                var otherExercises = new List<DailyExercise>();
+
+                if (userTrainingDoc?.Trainings != null)
+                {
+                    otherExercises.AddRange(
+                        userTrainingDoc.Trainings
+                            .SelectMany(t => t.Exercises)
+                            .Where(e => e != null && !string.IsNullOrWhiteSpace(e.Name) && !gymLifts.Any(l => e.Name.Contains(l, StringComparison.OrdinalIgnoreCase)))
+                    );
+                }
+
+                if (userTrainingHistoryDoc?.DailyTrainingPlans != null)
+                {
+                    otherExercises.AddRange(
+                        userTrainingHistoryDoc.DailyTrainingPlans
+                            .SelectMany(p => p.Exercises)
+                            .Where(e => e != null && !string.IsNullOrWhiteSpace(e.Name) && !gymLifts.Any(l => e.Name.Contains(l, StringComparison.OrdinalIgnoreCase)))
+                    );
+
+                }
+
+                foreach (var ex in otherExercises)
+                {
+                    if (ex.Series == null || ex.Series.Count == 0)
+                        continue;
+
+                    var bestSeries = ex.Series
+                        .OrderByDescending(s => s.WeightKg)
+                        .ThenByDescending(s => s.Repetitions)
+                        .FirstOrDefault();
+
+                    if (bestSeries == null) continue;
+
+                    UpdateBestLift(bestLifts, ex.Name, bestSeries.WeightKg, bestSeries.Repetitions);
+                }
+
                 return (bestLifts.Values.ToList(), ErrorResponse.Ok());
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogError(ex, $"Failed while trying to get user best lifts data. UserId: {userId} Method: {nameof(GetUserBestLifts)}");
                 return (new List<BestLiftData>(), ErrorResponse.Internal(ex.Message));
             }
         }
+
+        private void UpdateBestLift(Dictionary<string, BestLiftData> bestLifts, string name, double weightKg, int reps)
+        {
+            if (!bestLifts.TryGetValue(name, out var existing))
+            {
+                bestLifts[name] = new BestLiftData
+                {
+                    Name = name,
+                    WeightKg = weightKg,
+                    Repetitions = reps
+                };
+            }
+            else
+            {
+                if (weightKg > existing.WeightKg ||
+                    (weightKg == existing.WeightKg && reps > existing.Repetitions))
+                {
+                    bestLifts[name] = new BestLiftData
+                    {
+                        Name = name,
+                        WeightKg = weightKg,
+                        Repetitions = reps
+                    };
+                }
+            }
+        }
+
+
 
         private async Task<(Statistics data, ErrorResponse error)> GetUserStatistics(string userId)
         {
