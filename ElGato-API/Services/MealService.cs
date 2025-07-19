@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using MongoDB.Bson;
 using MongoDB.Driver;
+using System.Net;
 
 namespace ElGato_API.Services
 {
@@ -80,7 +81,7 @@ namespace ElGato_API.Services
                     {
                         Id = meal.Id,
                         StringId = meal.Id.ToString(),
-                        Name = meal.Name,
+                        Name = WebUtility.HtmlDecode(meal.Name),
                         Time = meal.Time,
                         Img = meal.Img,
                         Desc = meal.Description,
@@ -95,6 +96,7 @@ namespace ElGato_API.Services
                         Difficulty = meal.Difficulty ?? "Easy",
                         LikedCounter = meal.LikedCounter,
                         CreatorName = users.ContainsKey(meal.UserId) ? users[meal.UserId].Name : "Unknown",
+                        CreatorId = meal.UserId,
                         CreatorPfp = users.ContainsKey(meal.UserId) ? users[meal.UserId].Pfp : "/pfp-images/e2f56642-a493-4c6d-924b-d3072714646a.png",
                         Liked = CheckIfLiked(LikedMeals, meal.Id.ToString()),
                         Saved = CheckIfLiked(SavedMeals, meal.Id.ToString()),
@@ -166,7 +168,7 @@ namespace ElGato_API.Services
                     {
                         Id = meal.Id,
                         StringId = meal.Id.ToString(),
-                        Name = meal.Name,
+                        Name = WebUtility.HtmlDecode(meal.Name),
                         Time = meal.Time,
                         Desc = meal.Description,
                         Ingredients = meal.Ingridients,
@@ -181,6 +183,7 @@ namespace ElGato_API.Services
                         SavedCounter = meal.SavedCounter,
                         LikedCounter = meal.LikedCounter,
                         CreatorName = users.ContainsKey(meal.UserId) ? users[meal.UserId].Name : "Unknown",
+                        CreatorId = meal.UserId,
                         CreatorPfp = users.ContainsKey(meal.UserId) ? users[meal.UserId].Pfp : "/pfp-images/e2f56642-a493-4c6d-924b-d3072714646a.png",
                         Liked = CheckIfLiked(LikedMeals, meal.Id.ToString()), 
                         Saved = CheckIfLiked(SavedMeals, meal.Id.ToString()),
@@ -252,7 +255,7 @@ namespace ElGato_API.Services
                     {
                         Id = meal.Id,
                         StringId = meal.Id.ToString(),
-                        Name = meal.Name,
+                        Name = WebUtility.HtmlDecode(meal.Name),
                         Time = meal.Time,
                         Img = meal.Img,
                         Desc = meal.Description,
@@ -267,6 +270,7 @@ namespace ElGato_API.Services
                         SavedCounter = meal.SavedCounter,
                         LikedCounter = meal.LikedCounter,
                         CreatorName = users.ContainsKey(meal.UserId) ? users[meal.UserId].Name : "Unknown",
+                        CreatorId = meal.UserId,
                         CreatorPfp = users.ContainsKey(meal.UserId) ? users[meal.UserId].Pfp : "/pfp-images/e2f56642-a493-4c6d-924b-d3072714646a.png",
                         Liked = CheckIfLiked(LikedMeals, meal.Id.ToString()), 
                         Saved = CheckIfLiked(SavedMeals, meal.Id.ToString()),
@@ -311,7 +315,7 @@ namespace ElGato_API.Services
                     {
                         Id = meal.Id,
                         StringId = meal.Id.ToString(),
-                        Name = meal.Name,
+                        Name = WebUtility.HtmlDecode(meal.Name),
                         Time = meal.Time,
                         Img = meal.Img,
                         Kcal = meal.MealsMakro.Kcal,
@@ -326,6 +330,7 @@ namespace ElGato_API.Services
                         SavedCounter = meal.SavedCounter,
                         LikedCounter = meal.LikedCounter,
                         CreatorName = users.ContainsKey(meal.UserId) ? users[meal.UserId].Name : "Unknown",
+                        CreatorId = meal.UserId,
                         CreatorPfp = users.ContainsKey(meal.UserId) ? users[meal.UserId].Pfp : "/pfp-images/e2f56642-a493-4c6d-924b-d3072714646a.png",
                         Liked = CheckIfLiked(LikedMeals, meal.Id.ToString()),
                         Saved = CheckIfLiked(SavedMeals, meal.Id.ToString()),
@@ -367,7 +372,7 @@ namespace ElGato_API.Services
                     {
                         Id = meal.Id,
                         StringId = meal.Id.ToString(),
-                        Name = meal.Name,
+                        Name = WebUtility.HtmlDecode(meal.Name),
                         Time = meal.Time,
                         Img = meal.Img,
                         Difficulty = meal.Difficulty??"Easy",
@@ -382,6 +387,7 @@ namespace ElGato_API.Services
                         SavedCounter = meal.SavedCounter,
                         LikedCounter = meal.LikedCounter,
                         CreatorName = users.ContainsKey(meal.UserId) ? users[meal.UserId].Name : "Unknown",
+                        CreatorId = meal.UserId,
                         CreatorPfp = users.ContainsKey(meal.UserId) ? users[meal.UserId].Pfp : "/pfp-images/e2f56642-a493-4c6d-924b-d3072714646a.png",
                         Liked = CheckIfLiked(LikedMeals, meal.Id.ToString()),
                         Saved = CheckIfLiked(SavedMeals, meal.Id.ToString()),
@@ -646,7 +652,7 @@ namespace ElGato_API.Services
                 {
                     Id = meal.Id,
                     StringId = meal.Id.ToString(),
-                    Name = meal.Name,
+                    Name = WebUtility.HtmlDecode(meal.Name),
                     Time = meal.Time,
                     Img = meal.Img,
                     Desc = meal.Description,
@@ -661,6 +667,7 @@ namespace ElGato_API.Services
                     SavedCounter = meal.SavedCounter,
                     LikedCounter = meal.LikedCounter,
                     CreatorName = users.ContainsKey(meal.UserId) ? users[meal.UserId].Name : "Unknown",
+                    CreatorId = meal.UserId,
                     CreatorPfp = users.ContainsKey(meal.UserId) ? users[meal.UserId].Pfp : "/pfp-images/e2f56642-a493-4c6d-924b-d3072714646a.png",
                     Liked = likedMeals.Contains(meal.Id.ToString()),
                     Saved = savedMeals.Contains(meal.Id.ToString()),
@@ -721,7 +728,7 @@ namespace ElGato_API.Services
                     {
                         Id = meal.Id,
                         StringId = meal.Id.ToString(),
-                        Name = meal.Name,
+                        Name = WebUtility.HtmlDecode(meal.Name),
                         Time = meal.Time,
                         Img = meal.Img,
                         Desc = meal.Description,
@@ -736,6 +743,7 @@ namespace ElGato_API.Services
                         SavedCounter = meal.SavedCounter,
                         LikedCounter = meal.LikedCounter,
                         CreatorName = users.ContainsKey(meal.UserId) ? users[meal.UserId].Name : "Unknown",
+                        CreatorId = meal.UserId,
                         CreatorPfp = users.ContainsKey(meal.UserId) ? users[meal.UserId].Pfp : "/pfp-images/e2f56642-a493-4c6d-924b-d3072714646a.png",
                         Liked = true, 
                         Saved = doc.SavedMeals.Contains(meal.Id.ToString()),
@@ -795,7 +803,7 @@ namespace ElGato_API.Services
                     {
                         Id = meal.Id,
                         StringId = meal.Id.ToString(),
-                        Name = meal.Name,
+                        Name = WebUtility.HtmlDecode(meal.Name),
                         Time = meal.Time,
                         Img = meal.Img,
                         Desc = meal.Description,
@@ -810,6 +818,7 @@ namespace ElGato_API.Services
                         SavedCounter = meal.SavedCounter,
                         LikedCounter = meal.LikedCounter,
                         CreatorName = users.ContainsKey(meal.UserId) ? users[meal.UserId].Name : "Unknown",
+                        CreatorId = meal.UserId,
                         CreatorPfp = users.ContainsKey(meal.UserId) ? users[meal.UserId].Pfp : "/pfp-images/e2f56642-a493-4c6d-924b-d3072714646a.png",
                         Liked = doc.LikedMeals.Contains(meal.Id.ToString()), 
                         Saved = true ,
@@ -984,7 +993,7 @@ namespace ElGato_API.Services
                     {
                         Id = meal.Id,
                         StringId = meal.Id.ToString(),
-                        Name = meal.Name??"Meal",
+                        Name = WebUtility.HtmlDecode(meal.Name) ?? "Meal",
                         Time = meal.Time,
                         Img = meal.Img,
                         Kcal = meal.MealsMakro.Kcal,
@@ -999,6 +1008,7 @@ namespace ElGato_API.Services
                         SavedCounter = meal.SavedCounter,
                         LikedCounter = meal.LikedCounter,
                         CreatorName = users.ContainsKey(meal.UserId) ? users[meal.UserId].Name : "Unknown",
+                        CreatorId = meal.UserId,
                         CreatorPfp = users.ContainsKey(meal.UserId) ? users[meal.UserId].Pfp : "/pfp-images/e2f56642-a493-4c6d-924b-d3072714646a.png",
                         Liked = LikedMeals.Contains(meal.Id.ToString()),
                         Saved = SavedMeals.Contains(meal.Id.ToString()),
@@ -1083,7 +1093,7 @@ namespace ElGato_API.Services
                 {
                     Id = meal.Id,
                     StringId = meal.Id.ToString(),
-                    Name = meal.Name ?? "xdddd",
+                    Name = WebUtility.HtmlDecode(meal.Name),
                     Time = meal.Time,
                     Img = meal.Img,
                     Kcal = meal.MealsMakro.Kcal,
@@ -1098,6 +1108,7 @@ namespace ElGato_API.Services
                     SavedCounter = meal.SavedCounter,
                     LikedCounter = meal.LikedCounter,
                     CreatorName = user.ContainsKey(meal.UserId) ? user[meal.UserId].Name : "Unknown",
+                    CreatorId = meal.UserId,
                     CreatorPfp = user.ContainsKey(meal.UserId) ? user[meal.UserId].Pfp : "/pfp-images/e2f56642-a493-4c6d-924b-d3072714646a.png",
                     Liked = LikedMeals.Contains(meal.Id.ToString()),
                     Saved = SavedMeals.Contains(meal.Id.ToString()),

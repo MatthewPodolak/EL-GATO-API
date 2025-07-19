@@ -22,6 +22,7 @@ namespace ElGato_API.VMO.Meals
         public int LikedCounter { get; set; } = 0;
         public string CreatorName { get; set; }
         public string? CreatorPfp { get; set; }
+        public string CreatorId { get; set; }
         public bool Liked { get; set; } = false;
         public bool Saved { get; set; } = false;
         public bool Own {  get; set; } = false;
